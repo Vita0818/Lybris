@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lybris 学科资料站</title>
+    <meta
+      name="description"
+      content="Lybris 学科资料站模板，资料托管于 Google Drive，并通过静态索引展示。"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="decorativeChips" class="formula-chips" aria-hidden="true"></div>
+
+    <header class="site-header card">
+      <div class="brand">
+        <img id="siteAvatar" src="assets/avatar.png" alt="站点头像" class="avatar" />
+        <div>
+          <h1 class="site-title">
+            <span id="brandName" class="title-en">Lybris</span>
+            <span id="subjectName" class="title-cn">学科资料站</span>
+          </h1>
+          <p id="siteSubtitle">课本知识上传与共享计划</p>
+        </div>
+      </div>
+      <a
+        id="openAllBtn"
+        class="btn"
+        href="#"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        打开全部资料文件夹
+      </a>
+    </header>
+
+    <section class="toolbar card">
+      <input id="searchInput" type="search" placeholder="搜索文件夹或 PDF..." aria-label="搜索" />
+      <button id="backBtn" class="btn ghost" type="button">返回上一级</button>
+      <nav id="breadcrumb" class="breadcrumb" aria-label="当前路径"></nav>
+    </section>
+
+    <main class="layout">
+      <aside class="sidebar card">
+        <h2 id="sidebarTitle">文件夹</h2>
+        <nav id="folderTree" class="folder-tree" aria-label="完整文件夹树"></nav>
+      </aside>
+
+      <section class="file-view card">
+        <div class="view-head">
+          <h2 id="viewTitle">全部资料</h2>
+          <span id="resultCount" class="muted"></span>
+        </div>
+        <div id="contentList" class="content-list"></div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>

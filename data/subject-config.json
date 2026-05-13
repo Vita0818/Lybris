@@ -1,0 +1,40 @@
+{
+  "subjectId": "calculus-and-analysis",
+  "subjectName": "数学分析 / 微积分",
+  "description": "数学分析与微积分资料集合。迁移到其他学科时，替换本文件中的学科标识、名称、说明、分类和装饰标签即可。",
+  "categories": [
+    {
+      "id": "course-notes",
+      "name": "课程笔记",
+      "description": "按课程或章节整理的课堂笔记。"
+    },
+    {
+      "id": "seminar-problems",
+      "name": "研讨班题目",
+      "description": "研讨班、习题课或专题训练材料。"
+    },
+    {
+      "id": "past-exams",
+      "name": "历年真题",
+      "description": "课程考试、竞赛或其他测验资料。"
+    },
+    {
+      "id": "references",
+      "name": "参考资料",
+      "description": "补充阅读、整理稿和其他共享资料。"
+    }
+  ],
+  "decorativeChips": [
+    "Taylor Formula",
+    "Stokes Theorem",
+    "Green Formula",
+    "Gauss Formula",
+    "∫ f(x) dx",
+    "∇ · F",
+    "e^{iπ}+1=0",
+    "lim sin x / x = 1",
+    "Σ 1/n² = π²/6",
+    "ε-δ",
+    "∂²f/∂x∂y"
+  ]
+}
