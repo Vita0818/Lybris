@@ -3,58 +3,104 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lybris 学科资料站</title>
+    <title>Lybris 学科资料书架</title>
     <meta
       name="description"
-      content="Lybris 学科资料站模板，资料托管于 Google Drive，并通过静态索引展示。"
+      content="Lybris 学科资料书架模板，资料由外部存储同步为静态索引，并在页面中统一浏览。"
     />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div id="decorativeChips" class="formula-chips" aria-hidden="true"></div>
+    <div id="decorativeChips" class="ambient-chips" aria-hidden="true"></div>
 
-    <header class="site-header card">
-      <div class="brand">
-        <img id="siteAvatar" src="assets/avatar.png" alt="站点头像" class="avatar" />
-        <div>
-          <h1 class="site-title">
-            <span id="brandName" class="title-en">Lybris</span>
-            <span id="subjectName" class="title-cn">学科资料站</span>
-          </h1>
-          <p id="siteSubtitle">课本知识上传与共享计划</p>
+    <div class="app-shell">
+      <header class="hero-panel glass-panel">
+        <div class="brand">
+          <img id="siteAvatar" src="assets/avatar.png" alt="站点头像" class="avatar" />
+          <div class="brand-copy">
+            <p class="eyebrow">Vitemis Library Shelf</p>
+            <h1 class="site-title">
+              <span id="brandName" class="title-en">Lybris</span>
+              <span id="subjectName" class="title-cn">学科资料站</span>
+            </h1>
+            <p id="siteSubtitle">课本知识上传与共享计划</p>
+          </div>
         </div>
-      </div>
-      <a
-        id="openAllBtn"
-        class="btn"
-        href="#"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        打开全部资料文件夹
-      </a>
-    </header>
 
-    <section class="toolbar card">
-      <input id="searchInput" type="search" placeholder="搜索文件夹或 PDF..." aria-label="搜索" />
-      <button id="backBtn" class="btn ghost" type="button">返回上一级</button>
-      <nav id="breadcrumb" class="breadcrumb" aria-label="当前路径"></nav>
-    </section>
+        <aside class="source-card">
+          <div>
+            <p class="source-label">资料源</p>
+            <strong id="sourceName">静态索引</strong>
+            <span id="sourceUpdated">等待同步</span>
+          </div>
+          <a
+            id="openAllBtn"
+            class="btn secondary"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            打开源文件夹
+          </a>
+        </aside>
+      </header>
 
-    <main class="layout">
-      <aside class="sidebar card">
-        <h2 id="sidebarTitle">文件夹</h2>
-        <nav id="folderTree" class="folder-tree" aria-label="完整文件夹树"></nav>
-      </aside>
-
-      <section class="file-view card">
-        <div class="view-head">
-          <h2 id="viewTitle">全部资料</h2>
-          <span id="resultCount" class="muted"></span>
+      <section class="search-panel glass-panel" aria-label="资料搜索与分类">
+        <div class="search-head">
+          <label class="search-label" for="searchInput">搜索资料库</label>
+          <button id="backBtn" class="btn ghost" type="button">返回上一级</button>
         </div>
-        <div id="contentList" class="content-list"></div>
+        <input id="searchInput" type="search" placeholder="搜索资料、课程、文件名..." aria-label="搜索" />
+        <nav id="categoryPills" class="category-pills" aria-label="资源分类"></nav>
       </section>
-    </main>
+
+      <section class="overview-grid" aria-label="学科资料概览">
+        <article class="metric-card glass-panel">
+          <span class="metric-label">资料集</span>
+          <strong id="folderCount">0</strong>
+          <small>Collection</small>
+        </article>
+        <article class="metric-card glass-panel">
+          <span class="metric-label">资料</span>
+          <strong id="fileCount">0</strong>
+          <small>Resource</small>
+        </article>
+        <article class="metric-card glass-panel">
+          <span class="metric-label">最近同步</span>
+          <strong id="latestUpdate">-</strong>
+          <small>Static index</small>
+        </article>
+        <article class="source-overview glass-panel">
+          <span class="type-badge source">SOURCE</span>
+          <div>
+            <strong id="sourceSummaryTitle">Lybris 资料库</strong>
+            <p id="sourceSummaryText">资料由外部存储同步为静态索引，页面优先呈现可浏览的学科书架。</p>
+          </div>
+        </article>
+      </section>
+
+      <main class="library-layout">
+        <aside class="sidebar glass-panel">
+          <div class="panel-head">
+            <p class="eyebrow">Collections</p>
+            <h2 id="sidebarTitle">资料导航</h2>
+          </div>
+          <nav id="folderTree" class="folder-tree" aria-label="完整文件夹树"></nav>
+        </aside>
+
+        <section class="library-main glass-panel">
+          <div class="view-head">
+            <div>
+              <p class="eyebrow">Current Shelf</p>
+              <h2 id="viewTitle">全部资料</h2>
+            </div>
+            <span id="resultCount" class="count-pill"></span>
+          </div>
+          <nav id="breadcrumb" class="breadcrumb" aria-label="当前路径"></nav>
+          <div id="contentList" class="content-grid"></div>
+        </section>
+      </main>
+    </div>
 
     <script src="script.js"></script>
   </body>

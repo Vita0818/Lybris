@@ -1,7 +1,7 @@
 {
   "subjectId": "calculus-and-analysis",
   "subjectName": "数学分析 / 微积分",
-  "description": "数学分析与微积分资料集合。迁移到其他学科时，替换本文件中的学科标识、名称、说明、分类和装饰标签即可。",
+  "description": "学科资料集合示例。迁移到其他学科时，替换本文件中的学科标识、名称、说明、分类和低权重装饰标签即可。",
   "categories": [
     {
       "id": "course-notes",
@@ -25,16 +25,10 @@
     }
   ],
   "decorativeChips": [
-    "Taylor Formula",
-    "Stokes Theorem",
-    "Green Formula",
-    "Gauss Formula",
-    "∫ f(x) dx",
-    "∇ · F",
-    "e^{iπ}+1=0",
-    "lim sin x / x = 1",
-    "Σ 1/n² = π²/6",
-    "ε-δ",
-    "∂²f/∂x∂y"
+    "Course Notes",
+    "Shared Shelf",
+    "Reference Pack",
+    "Study Index",
+    "Open Materials"
   ]
 }
