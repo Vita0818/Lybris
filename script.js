@@ -1,27 +1,45 @@
 const SITE_CONFIG_PATH = "data/site-config.json";
 const SUBJECT_CONFIG_PATH = "data/subject-config.json";
 const DRIVE_INDEX_PATH = "data/drive-index.json";
+const PDFJS_MODULE_PATH = "./vendor/pdfjs/pdf.mjs";
+const PDFJS_WORKER_PATH = "./vendor/pdfjs/pdf.worker.mjs";
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"]);
+const IMAGE_PREVIEW_URL_FIELDS = ["rawUrl", "downloadUrl", "exportUrl", "contentUrl", "thumbnailUrl", "url"];
 
 const fallbackSiteConfig = {
   brandName: "Lybris",
-  siteTitle: "Lybris 学科资料书架",
+  siteTitle: "Lybris 学科资料站模板",
   subtitle: "课本知识上传与共享计划",
   ownerName: "",
-  description: "Lybris 学科资料书架模板，资料由外部存储同步为静态索引，并在页面中统一浏览。",
+  description: "面向多学科资料整理、上传、索引与共享的静态站点模板。",
   avatarUrl: "assets/avatar.png",
   avatarAlt: "站点头像",
   driveFolderUrl: "",
   rootLabel: "全部资料",
-  openAllLabel: "打开资料源",
+  openAllLabel: "资料源待配置",
   searchPlaceholder: "搜索资料、课程、文件名...",
   backLabel: "返回上一级",
   sidebarTitle: "资料导航",
   openLabel: "打开",
+  previewLabel: "预览",
+  openOriginalLabel: "打开原文件",
+  closeLabel: "关闭",
+  loadingPreviewText: "正在加载预览...",
+  previewLoadingText: "正在加载预览...",
+  previewUnavailableText: "这个资料暂时无法在网页内预览，请打开原文件查看。",
+  pdfFallbackText: "PDF 暂时无法在网页内渲染，请打开原文件查看。",
+  markdownLoadFailedText: "Markdown 内容暂时无法加载，请打开原文件查看。",
+  imagePreviewLabel: "图片预览",
+  imagePreviewUnavailableText: "图片暂时无法在网页内预览，请打开原文件查看。",
+  imageLoadFailedText: "图片加载失败，请打开原文件查看。",
+  pdfPreviewTitle: "PDF 预览",
+  markdownPreviewTitle: "Markdown 预览",
+  imagePreviewTitle: "图片预览",
   enterLabel: "进入",
   folderTypeLabel: "资料集",
   fileTypeLabel: "资料",
-  emptyRootMessage: "资料库索引尚未同步。请先更新外部资料源索引。",
-  emptyFolderMessage: "这个资料集暂时没有内容。",
+  emptyRootMessage: "尚未配置资料索引。请在 data/drive-index.json 或 DRIVE_INDEX_SOURCE_URL 中配置资料来源。",
+  emptyFolderMessage: "这个资料集暂时没有内容，可以在资料源中添加讲义、笔记或参考资料。",
   noResultsMessage: "没有匹配的资料。"
 };
 
@@ -42,6 +60,11 @@ let currentFolder = rootTree;
 let currentPath = [rootTree];
 let activeSearch = "";
 let nodeMap = new Map();
+let previewToken = 0;
+let pdfjsLibPromise = null;
+let markdownRenderer = null;
+let activeImageViewer = null;
+let activeImagePreviewImage = null;
 
 const searchInput = document.getElementById("searchInput");
 const backBtn = document.getElementById("backBtn");
@@ -65,6 +88,12 @@ const sourceUpdated = document.getElementById("sourceUpdated");
 const sourceName = document.getElementById("sourceName");
 const sourceSummaryTitle = document.getElementById("sourceSummaryTitle");
 const sourceSummaryText = document.getElementById("sourceSummaryText");
+const previewModal = document.getElementById("previewModal");
+const previewTitle = document.getElementById("previewTitle");
+const previewBadge = document.getElementById("previewBadge");
+const previewContent = document.getElementById("previewContent");
+const previewOpenOriginal = document.getElementById("previewOpenOriginal");
+const previewCloseBtn = document.getElementById("previewCloseBtn");
 
 function mergeConfig(fallback, loaded) {
   if (!loaded || typeof loaded !== "object" || Array.isArray(loaded)) {
@@ -119,9 +148,12 @@ function applyConfig() {
   searchInput.placeholder = siteConfig.searchPlaceholder || fallbackSiteConfig.searchPlaceholder;
   backBtn.textContent = siteConfig.backLabel || fallbackSiteConfig.backLabel;
   sidebarTitle.textContent = siteConfig.sidebarTitle || fallbackSiteConfig.sidebarTitle;
+  previewCloseBtn.textContent = siteConfig.closeLabel || fallbackSiteConfig.closeLabel;
+  previewCloseBtn.setAttribute("aria-label", siteConfig.closeLabel || fallbackSiteConfig.closeLabel);
+  previewOpenOriginal.textContent = siteConfig.openOriginalLabel || fallbackSiteConfig.openOriginalLabel;
   viewTitle.textContent = getRootLabel();
-  sourceName.textContent = `${siteConfig.brandName || fallbackSiteConfig.brandName} 静态资料源`;
-  sourceSummaryTitle.textContent = `${subjectConfig.subjectName || fallbackSubjectConfig.subjectName}资料书架`;
+  sourceName.textContent = `${siteConfig.brandName || fallbackSiteConfig.brandName} 资料索引`;
+  sourceSummaryTitle.textContent = subjectConfig.subjectName || fallbackSubjectConfig.subjectName;
   sourceSummaryText.textContent = subjectConfig.description || fallbackSubjectConfig.description;
 
   renderDecorativeChips();
@@ -187,6 +219,73 @@ function getConfiguredDriveFolderUrl() {
   return siteConfig.driveFolderUrl || "#";
 }
 
+function normalizeSignal(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function looksLikeGoogleDriveFolderUrl(url) {
+  return typeof url === "string" && /drive\.google\.com\/drive\/folders\//i.test(url);
+}
+
+function getFileExtension(item) {
+  const candidates = [
+    item?.title,
+    item?.name,
+    item?.url,
+    item?.rawUrl,
+    item?.downloadUrl,
+    item?.exportUrl,
+    item?.contentUrl,
+    item?.thumbnailUrl,
+    item?.imageUrl,
+    item?.markdownUrl,
+    item?.sourceUrl,
+    item?.filePath,
+    item?.path,
+    item?.previewUrl,
+    item?.embedUrl,
+    item?.pdfUrl
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const cleanValue = candidate.split(/[?#]/)[0].trim();
+    const match = cleanValue.match(/\.([a-z0-9]+)$/i);
+    if (match) return match[1].toLowerCase();
+  }
+
+  return "";
+}
+
+function inferNodeKind(node) {
+  const rawType = normalizeSignal(node?.type);
+  const mimeType = normalizeSignal(node?.mimeType || node?.mime || node?.contentType);
+
+  if (
+    rawType === "folder" ||
+    rawType === "directory" ||
+    mimeType === "application/vnd.google-apps.folder" ||
+    looksLikeGoogleDriveFolderUrl(node?.url)
+  ) {
+    return "folder";
+  }
+
+  if (
+    rawType === "file" ||
+    rawType.includes("pdf") ||
+    rawType.includes("markdown") ||
+    rawType.includes("image") ||
+    IMAGE_EXTENSIONS.has(rawType) ||
+    rawType.includes("text/plain") ||
+    mimeType ||
+    getFileExtension(node)
+  ) {
+    return "file";
+  }
+
+  return Array.isArray(node?.children) ? "folder" : "file";
+}
+
 function createFallbackTree() {
   return {
     title: getRootLabel(),
@@ -200,11 +299,13 @@ function createFallbackTree() {
 
 function safeNode(node) {
   const title = node?.title || "未命名";
-  const type = node?.type === "file" ? "file" : "folder";
+  const type = inferNodeKind(node);
   const children = type === "folder" ? (Array.isArray(node?.children) ? node.children : []) : undefined;
   return {
+    ...(node && typeof node === "object" ? node : {}),
     title,
     type,
+    indexType: node?.type || "",
     url: node?.url || getConfiguredDriveFolderUrl(),
     category: node?.category || "",
     updatedAt: node?.updatedAt || "-",
@@ -296,7 +397,7 @@ function renderOverview() {
   folderCount.textContent = `${folders.length}`;
   fileCount.textContent = `${files.length}`;
   latestUpdate.textContent = latest || "-";
-  sourceUpdated.textContent = latest ? `最近同步 ${latest}` : "等待同步";
+  sourceUpdated.textContent = latest ? `最近同步 ${latest}` : "待配置资料源";
 }
 
 function getLatestUpdatedAt(nodes) {
@@ -385,6 +486,15 @@ function createOpenAction(item) {
   return action;
 }
 
+function createPreviewAction(item) {
+  const action = document.createElement("button");
+  action.type = "button";
+  action.className = "btn preview-action";
+  action.textContent = siteConfig.previewLabel || fallbackSiteConfig.previewLabel;
+  action.addEventListener("click", () => openPreview(item));
+  return action;
+}
+
 function renderEmptyMessage(message) {
   contentList.innerHTML = "";
   const empty = document.createElement("div");
@@ -400,12 +510,62 @@ function getTypeLabel(item) {
   return siteConfig.fileTypeLabel || fallbackSiteConfig.fileTypeLabel;
 }
 
+function getFileSignals(item) {
+  return {
+    extension: getFileExtension(item),
+    mimeType: normalizeSignal(item?.mimeType || item?.mime || item?.contentType),
+    sourceType: normalizeSignal(
+      item?.sourceType || item?.indexType || item?.fileType || item?.format || item?.kind || item?.type
+    )
+  };
+}
+
+function isPdfResource(item) {
+  if (item.type !== "file") return false;
+  const { extension, mimeType, sourceType } = getFileSignals(item);
+  return extension === "pdf" || mimeType === "application/pdf" || sourceType.includes("pdf");
+}
+
+function isMarkdownResource(item) {
+  if (item.type !== "file") return false;
+  const { extension, mimeType, sourceType } = getFileSignals(item);
+  return (
+    extension === "md" ||
+    extension === "markdown" ||
+    mimeType === "text/markdown" ||
+    mimeType === "text/x-markdown" ||
+    (mimeType === "text/plain" && ["md", "markdown"].includes(extension)) ||
+    sourceType.includes("markdown")
+  );
+}
+
+function isImageResource(item) {
+  if (item.type !== "file" || isPdfResource(item) || isMarkdownResource(item)) return false;
+  const { extension, mimeType, sourceType } = getFileSignals(item);
+  return (
+    IMAGE_EXTENSIONS.has(extension) ||
+    IMAGE_EXTENSIONS.has(sourceType) ||
+    mimeType.startsWith("image/") ||
+    sourceType.includes("image")
+  );
+}
+
+function getPreviewKind(item) {
+  if (isPdfResource(item)) return "pdf";
+  if (isMarkdownResource(item)) return "markdown";
+  if (isImageResource(item)) return "image";
+  return "";
+}
+
 function getBadgeLabel(item) {
   if (item.type === "folder") return "FOLDER";
 
-  const extension = item.title.includes(".")
-    ? item.title.split(".").pop().trim().toUpperCase()
-    : "";
+  const previewKind = getPreviewKind(item);
+  if (previewKind === "pdf") return "PDF";
+  if (previewKind === "markdown") return "MD";
+  if (previewKind === "image") return "IMG";
+
+  const extension = getFileExtension(item).toUpperCase();
 
   if (["PDF", "DOC", "DOCX", "PPT", "PPTX", "XLS", "XLSX", "MD"].includes(extension)) {
     return extension;
@@ -416,7 +576,11 @@ function getBadgeLabel(item) {
 
 function getBadgeClass(item) {
   if (item.type === "folder") return "folder";
-  return getBadgeLabel(item).toLowerCase() === "pdf" ? "pdf" : item.url ? "link" : "file";
+  const previewKind = getPreviewKind(item);
+  if (previewKind === "pdf") return "pdf";
+  if (previewKind === "markdown") return "markdown";
+  if (previewKind === "image") return "image";
+  return item.url ? "link" : "file";
 }
 
 function formatUpdatedAt(item) {
@@ -430,9 +594,21 @@ function readablePath(pathNodes) {
 function createCard(item, pathText, actionNode) {
   const card = document.createElement("article");
   card.className = `library-card ${item.type === "folder" ? "collection-card" : "resource-card"}`;
+  const previewKind = getPreviewKind(item);
 
   const main = document.createElement("div");
   main.className = "card-main";
+  if (previewKind) {
+    main.classList.add("preview-trigger");
+    main.setAttribute("role", "button");
+    main.tabIndex = 0;
+    main.addEventListener("click", () => openPreview(item));
+    main.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openPreview(item);
+    });
+  }
 
   const topline = document.createElement("div");
   topline.className = "card-topline";
@@ -463,10 +639,643 @@ function createCard(item, pathText, actionNode) {
 
   const actions = document.createElement("div");
   actions.className = "card-actions";
+  if (previewKind) {
+    actions.appendChild(createPreviewAction(item));
+  }
   actions.appendChild(actionNode);
 
   card.append(main, actions);
   return card;
+}
+
+function getConfigText(key) {
+  return siteConfig[key] || fallbackSiteConfig[key] || "";
+}
+
+function getPreviewLoadingText() {
+  return getConfigText("loadingPreviewText") || getConfigText("previewLoadingText");
+}
+
+function firstStringValue(item, fields) {
+  for (const field of fields) {
+    const value = item?.[field];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function getOriginalUrl(item) {
+  return (
+    firstStringValue(item, [
+      "url",
+      "webViewLink",
+      "alternateLink",
+      "contentUrl",
+      "rawUrl",
+      "downloadUrl",
+      "exportUrl",
+      "thumbnailUrl"
+    ]) || "#"
+  );
+}
+
+function getPreviewTitle(kind) {
+  if (kind === "pdf") return getConfigText("pdfPreviewTitle");
+  if (kind === "markdown") return getConfigText("markdownPreviewTitle");
+  if (kind === "image") return getConfigText("imagePreviewTitle") || getConfigText("imagePreviewLabel");
+  return getConfigText("previewLabel");
+}
+
+function setPreviewBadge(kind) {
+  const badgeMap = {
+    pdf: { className: "pdf", label: "PDF" },
+    markdown: { className: "markdown", label: "MD" },
+    image: { className: "image", label: "IMG" }
+  };
+  const badge = badgeMap[kind] || { className: "file", label: "PREVIEW" };
+  previewBadge.className = `type-badge ${badge.className}`;
+  previewBadge.textContent = badge.label;
+}
+
+function setPreviewState(message, showOriginalLink = false) {
+  previewContent.innerHTML = "";
+
+  const state = document.createElement("div");
+  state.className = "preview-state";
+
+  const text = document.createElement("p");
+  text.textContent = message;
+  state.appendChild(text);
+
+  if (showOriginalLink) {
+    const link = document.createElement("a");
+    link.className = "btn secondary";
+    link.href = previewOpenOriginal.href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = getConfigText("openOriginalLabel");
+    state.appendChild(link);
+  }
+
+  previewContent.appendChild(state);
+}
+
+function openPreviewModalShell(item, kind, originalUrl) {
+  previewTitle.textContent = item.title || getPreviewTitle(kind);
+  previewOpenOriginal.href = originalUrl;
+  previewOpenOriginal.textContent = getConfigText("openOriginalLabel");
+  previewCloseBtn.textContent = getConfigText("closeLabel");
+  previewCloseBtn.setAttribute("aria-label", getConfigText("closeLabel"));
+  setPreviewBadge(kind);
+  setPreviewState(getPreviewLoadingText());
+
+  previewModal.hidden = false;
+  previewModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("preview-open");
+  previewContent.scrollTop = 0;
+  requestAnimationFrame(() => previewModal.classList.add("is-open"));
+  previewCloseBtn.focus({ preventScroll: true });
+}
+
+function openPreview(item) {
+  const kind = getPreviewKind(item);
+  if (!kind) return;
+
+  previewToken += 1;
+  const token = previewToken;
+  const originalUrl = getOriginalUrl(item);
+  destroyActiveImageViewer();
+
+  if (kind === "image") {
+    hidePreviewModal();
+    renderImagePreview(item, token);
+    return;
+  }
+
+  openPreviewModalShell(item, kind, originalUrl);
+
+  if (kind === "pdf") {
+    renderPdfPreview(item, token);
+    return;
+  }
+
+  renderMarkdownPreview(item, token);
+}
+
+function hidePreviewModal() {
+  previewModal.classList.remove("is-open");
+  previewModal.setAttribute("aria-hidden", "true");
+  previewModal.hidden = true;
+  document.body.classList.remove("preview-open");
+  previewContent.innerHTML = "";
+}
+
+function closePreview() {
+  if (previewModal.hidden) return;
+  previewToken += 1;
+  hidePreviewModal();
+}
+
+function addUniqueCandidate(candidates, url) {
+  if (url && !candidates.includes(url)) candidates.push(url);
+}
+
+function getGoogleDriveImageCandidates(fileId) {
+  if (!fileId) return [];
+  const encodedId = encodeURIComponent(fileId);
+  return [
+    `https://drive.google.com/uc?export=view&id=${encodedId}`,
+    `https://drive.google.com/thumbnail?id=${encodedId}&sz=w2000`
+  ];
+}
+
+function isGoogleDriveFolderResourceUrl(url) {
+  return typeof url === "string" && /drive\.google\.com\/drive\/folders\//i.test(url);
+}
+
+function getImageUrlCandidates(item) {
+  const candidates = [];
+
+  IMAGE_PREVIEW_URL_FIELDS.forEach((field) => {
+    const safeValue = sanitizeResourceUrl(item?.[field]);
+    if (!safeValue || isGoogleDriveFolderResourceUrl(safeValue)) return;
+
+    const driveFileId = getGoogleDriveFileIdFromUrl(safeValue);
+    if (driveFileId && isGoogleDriveUrl(safeValue)) {
+      getGoogleDriveImageCandidates(driveFileId).forEach((candidate) => addUniqueCandidate(candidates, candidate));
+      return;
+    }
+
+    addUniqueCandidate(candidates, safeValue);
+  });
+
+  const driveFileId = getGoogleDriveFileId(item);
+  getGoogleDriveImageCandidates(driveFileId).forEach((candidate) => addUniqueCandidate(candidates, candidate));
+
+  return candidates;
+}
+
+function createImagePreviewElement(url, item) {
+  return new Promise((resolve, reject) => {
+    const image = document.createElement("img");
+    image.className = "image-preview-source";
+    image.alt = item.title || getPreviewTitle("image");
+    image.decoding = "async";
+    image.loading = "eager";
+
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener(
+      "error",
+      () => reject(new Error(`Image failed to load: ${url}`)),
+      { once: true }
+    );
+
+    image.src = url;
+  });
+}
+
+async function renderImagePreview(item, token) {
+  if (!window.Viewer) {
+    showImagePreviewFallback(item, getConfigText("imagePreviewUnavailableText"));
+    return;
+  }
+
+  const imageCandidates = getImageUrlCandidates(item);
+  if (imageCandidates.length === 0) {
+    showImagePreviewFallback(item, getConfigText("imagePreviewUnavailableText"));
+    return;
+  }
+
+  for (const imageUrl of imageCandidates) {
+    try {
+      const image = await createImagePreviewElement(imageUrl, item);
+      if (token !== previewToken) {
+        removeImagePreviewElement(image);
+        return;
+      }
+      showImageViewer(image, item, token);
+      return;
+    } catch (error) {
+      if (token !== previewToken) return;
+      console.warn("图片预览加载失败", imageUrl, error);
+    }
+  }
+
+  if (token === previewToken) {
+    showImagePreviewFallback(item, getConfigText("imageLoadFailedText"));
+  }
+}
+
+function showImageViewer(image, item, token) {
+  if (token !== previewToken) {
+    removeImagePreviewElement(image);
+    return;
+  }
+
+  destroyActiveImageViewer();
+  document.body.appendChild(image);
+
+  try {
+    const viewer = new window.Viewer(image, {
+      inline: false,
+      button: true,
+      backdrop: true,
+      navbar: false,
+      title: [1, (imageElement) => imageElement.alt || getPreviewTitle("image")],
+      toolbar: true,
+      tooltip: true,
+      movable: true,
+      zoomable: true,
+      rotatable: true,
+      scalable: true,
+      transition: true,
+      fullscreen: true,
+      keyboard: true,
+      className: "lybris-image-viewer",
+      hidden() {
+        if (activeImageViewer === viewer) activeImageViewer = null;
+        if (activeImagePreviewImage === image) activeImagePreviewImage = null;
+        removeImagePreviewElement(image);
+      }
+    });
+
+    activeImageViewer = viewer;
+    activeImagePreviewImage = image;
+    viewer.show();
+  } catch (error) {
+    console.warn("Viewer.js 图片预览初始化失败", error);
+    removeImagePreviewElement(image);
+    showImagePreviewFallback(item, getConfigText("imagePreviewUnavailableText"));
+  }
+}
+
+function showImagePreviewFallback(item, message) {
+  destroyActiveImageViewer();
+  openPreviewModalShell(item, "image", getOriginalUrl(item));
+  setPreviewState(message || getConfigText("imagePreviewUnavailableText"), true);
+}
+
+function removeImagePreviewElement(image) {
+  if (image?.parentNode) {
+    image.parentNode.removeChild(image);
+  }
+}
+
+function destroyActiveImageViewer() {
+  const viewer = activeImageViewer;
+  const image = activeImagePreviewImage;
+  activeImageViewer = null;
+  activeImagePreviewImage = null;
+
+  if (viewer) {
+    try {
+      viewer.destroy();
+    } catch (error) {
+      console.warn("Viewer.js 清理失败", error);
+    }
+  }
+
+  removeImagePreviewElement(image);
+}
+
+function getGoogleDriveFileIdFromUrl(url) {
+  if (typeof url !== "string" || !url.trim()) return "";
+
+  const filePathMatch = url.match(/\/file\/d\/([^/?#]+)/i);
+  if (filePathMatch) return decodeURIComponent(filePathMatch[1]);
+
+  try {
+    const parsedUrl = new URL(url, window.location.href);
+    const id = parsedUrl.searchParams.get("id");
+    if (id) return id;
+  } catch (error) {
+    const queryMatch = url.match(/[?&]id=([^&#]+)/i);
+    if (queryMatch) return decodeURIComponent(queryMatch[1]);
+  }
+
+  return "";
+}
+
+function getGoogleDriveFileId(item) {
+  const fields = [
+    "url",
+    "webViewLink",
+    "alternateLink",
+    "downloadUrl",
+    "exportUrl",
+    "contentUrl",
+    "rawUrl",
+    "thumbnailUrl",
+    "previewUrl",
+    "imageUrl"
+  ];
+
+  for (const field of fields) {
+    const id = getGoogleDriveFileIdFromUrl(item?.[field]);
+    if (id) return id;
+  }
+
+  return "";
+}
+
+function isGoogleDriveUrl(url) {
+  return typeof url === "string" && /drive\.google\.com\//i.test(url);
+}
+
+function sanitizeResourceUrl(url) {
+  const trimmed = String(url || "").trim();
+  if (!trimmed || trimmed === "#") return "";
+
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+
+  try {
+    const parsedUrl = new URL(trimmed, window.location.href);
+    if (["http:", "https:"].includes(parsedUrl.protocol)) return trimmed;
+  } catch (error) {
+    return "";
+  }
+
+  return "";
+}
+
+function isGoogleDriveFileUrl(url) {
+  return typeof url === "string" && /drive\.google\.com\/(?:file\/d\/|open\?)/i.test(url);
+}
+
+function isLikelyFetchablePdfUrl(url) {
+  if (typeof url !== "string" || !url.trim() || url === "#") return false;
+  if (isGoogleDriveFileUrl(url)) return false;
+  if (/\/preview(?:[?#].*)?$/i.test(url)) return false;
+
+  const extension = getFileExtension({ url });
+  return extension === "pdf" || !/^[a-z][a-z0-9+.-]*:/i.test(url);
+}
+
+function getPdfJsCandidates(item) {
+  const candidates = [];
+  const trustedFields = ["rawUrl", "downloadUrl", "exportUrl", "contentUrl", "pdfUrl", "filePath", "path"];
+
+  trustedFields.forEach((field) => {
+    const safeValue = sanitizeResourceUrl(item?.[field]);
+    if (safeValue && !isGoogleDriveFileUrl(safeValue)) candidates.push(safeValue);
+  });
+
+  const safeItemUrl = sanitizeResourceUrl(item?.url);
+  if (isLikelyFetchablePdfUrl(safeItemUrl)) candidates.push(safeItemUrl);
+
+  return [...new Set(candidates)];
+}
+
+function getDrivePreviewUrl(item) {
+  const configuredPreview = sanitizeResourceUrl(firstStringValue(item, ["previewUrl", "embedUrl", "pdfPreviewUrl"]));
+  if (configuredPreview && /drive\.google\.com\/file\/d\/[^/]+\/preview/i.test(configuredPreview)) {
+    return configuredPreview;
+  }
+
+  const fileId = getGoogleDriveFileId(item);
+  return fileId ? `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview` : "";
+}
+
+async function loadPdfJs() {
+  if (!pdfjsLibPromise) {
+    pdfjsLibPromise = import(PDFJS_MODULE_PATH).then((pdfjsLib) => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_PATH;
+      return pdfjsLib;
+    });
+  }
+
+  return pdfjsLibPromise;
+}
+
+async function renderPdfPreview(item, token) {
+  if (token !== previewToken) return;
+
+  const pdfCandidates = getPdfJsCandidates(item);
+  const drivePreviewUrl = getDrivePreviewUrl(item);
+
+  for (const pdfUrl of pdfCandidates) {
+    try {
+      await renderPdfWithPdfJs(pdfUrl, item, token);
+      return;
+    } catch (error) {
+      console.warn("PDF.js 预览失败", pdfUrl, error);
+    }
+  }
+
+  if (token !== previewToken) return;
+
+  if (drivePreviewUrl) {
+    renderDrivePdfFallback(drivePreviewUrl, item);
+    return;
+  }
+
+  setPreviewState(getConfigText("pdfFallbackText") || getConfigText("previewUnavailableText"), true);
+}
+
+async function renderPdfWithPdfJs(pdfUrl, item, token) {
+  const pdfjsLib = await loadPdfJs();
+  if (token !== previewToken) return;
+
+  previewContent.innerHTML = "";
+
+  const pages = document.createElement("div");
+  pages.className = "pdf-preview-pages";
+
+  const meta = document.createElement("div");
+  meta.className = "pdf-preview-meta";
+  meta.textContent = getConfigText("pdfPreviewTitle");
+
+  pages.appendChild(meta);
+  previewContent.appendChild(pages);
+
+  const loadingTask = pdfjsLib.getDocument({
+    url: pdfUrl,
+    withCredentials: false
+  });
+  const pdf = await loadingTask.promise;
+  if (token !== previewToken) {
+    loadingTask.destroy();
+    return;
+  }
+
+  meta.textContent = `${getConfigText("pdfPreviewTitle")} · ${pdf.numPages} 页`;
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    if (token !== previewToken) {
+      loadingTask.destroy();
+      return;
+    }
+
+    const page = await pdf.getPage(pageNumber);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const availableWidth = Math.max(280, Math.min(previewContent.clientWidth - 44, 980));
+    const scale = Math.max(0.5, Math.min(2.1, availableWidth / baseViewport.width));
+    const viewport = page.getViewport({ scale });
+    const outputScale = window.devicePixelRatio || 1;
+
+    const pageWrap = document.createElement("figure");
+    pageWrap.className = "pdf-preview-page";
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { alpha: false });
+    canvas.width = Math.floor(viewport.width * outputScale);
+    canvas.height = Math.floor(viewport.height * outputScale);
+    canvas.style.width = `${Math.floor(viewport.width)}px`;
+    canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+    const caption = document.createElement("figcaption");
+    caption.textContent = `${pageNumber}`;
+
+    pageWrap.append(canvas, caption);
+    pages.appendChild(pageWrap);
+
+    await page.render({
+      canvasContext: context,
+      viewport,
+      transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null
+    }).promise;
+  }
+}
+
+function renderDrivePdfFallback(previewUrl, item) {
+  previewContent.innerHTML = "";
+  const frame = document.createElement("iframe");
+  frame.className = "pdf-preview-frame";
+  frame.src = previewUrl;
+  frame.title = item.title || getConfigText("pdfPreviewTitle");
+  frame.loading = "lazy";
+  previewContent.appendChild(frame);
+}
+
+function getMarkdownFetchCandidates(item) {
+  const fields = ["rawUrl", "downloadUrl", "exportUrl", "contentUrl", "markdownUrl", "sourceUrl", "filePath", "path"];
+  const candidates = [];
+
+  fields.forEach((field) => {
+    const value = item?.[field];
+    const safeValue = sanitizeResourceUrl(value);
+    if (safeValue) candidates.push(safeValue);
+  });
+
+  const safeItemUrl = sanitizeResourceUrl(item?.url);
+  if (isLikelyFetchableMarkdownUrl(safeItemUrl)) candidates.push(safeItemUrl);
+
+  const title = typeof item?.title === "string" ? item.title.trim() : "";
+  if (title && ["md", "markdown"].includes(getFileExtension({ title }))) {
+    candidates.push(title);
+  }
+
+  return [...new Set(candidates)];
+}
+
+function isLikelyFetchableMarkdownUrl(url) {
+  if (typeof url !== "string" || !url.trim() || url === "#") return false;
+  if (/drive\.google\.com\/(?:file\/d|drive\/folders)\//i.test(url)) return false;
+
+  const extension = getFileExtension({ url });
+  if (extension === "md" || extension === "markdown") return true;
+
+  return !/^[a-z][a-z0-9+.-]*:/i.test(url);
+}
+
+async function renderMarkdownPreview(item, token) {
+  if (!window.markdownit || !window.DOMPurify) {
+    setPreviewState(getConfigText("markdownLoadFailedText"), true);
+    return;
+  }
+
+  const candidates = getMarkdownFetchCandidates(item);
+  if (candidates.length === 0) {
+    setPreviewState(getConfigText("markdownLoadFailedText"), true);
+    return;
+  }
+
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) continue;
+
+      const markdown = await response.text();
+      if (token !== previewToken) return;
+
+      previewContent.innerHTML = "";
+      const article = document.createElement("article");
+      article.className = "preview-markdown";
+      article.innerHTML = renderMarkdownWithLibraries(markdown);
+      hardenPreviewLinks(article);
+      previewContent.appendChild(article);
+      return;
+    } catch (error) {
+      console.warn("Markdown 预览加载失败", url, error);
+    }
+  }
+
+  if (token === previewToken) {
+    setPreviewState(getConfigText("markdownLoadFailedText"), true);
+  }
+}
+
+function getMarkdownRenderer() {
+  if (!markdownRenderer) {
+    markdownRenderer = window.markdownit({
+      html: false,
+      linkify: true,
+      typographer: true
+    });
+
+    const defaultLinkOpen =
+      markdownRenderer.renderer.rules.link_open ||
+      ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
+
+    markdownRenderer.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+      const token = tokens[idx];
+      const hrefIndex = token.attrIndex("href");
+      const href = hrefIndex >= 0 ? token.attrs[hrefIndex][1] : "";
+
+      if (hrefIndex >= 0 && !isSafeDocumentLink(href)) {
+        token.attrs = token.attrs.filter(([name]) => name !== "href");
+      }
+
+      token.attrSet("target", "_blank");
+      token.attrSet("rel", "noopener noreferrer");
+      return defaultLinkOpen(tokens, idx, options, env, self);
+    };
+  }
+
+  return markdownRenderer;
+}
+
+function renderMarkdownWithLibraries(markdown) {
+  const html = getMarkdownRenderer().render(String(markdown || ""));
+  return window.DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ["target", "rel"],
+    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form"],
+    FORBID_ATTR: ["srcdoc", "style"]
+  });
+}
+
+function isSafeDocumentLink(href) {
+  const trimmed = String(href || "").trim();
+  if (!trimmed) return false;
+  if (/^(#|\.{0,2}\/|\?)/.test(trimmed)) return true;
+
+  try {
+    const parsedUrl = new URL(trimmed, window.location.href);
+    return ["http:", "https:", "mailto:", "tel:"].includes(parsedUrl.protocol);
+  } catch (error) {
+    return !/^[a-z][a-z0-9+.-]*:/i.test(trimmed);
+  }
+}
+
+function hardenPreviewLinks(root) {
+  root.querySelectorAll("a[href]").forEach((link) => {
+    if (!isSafeDocumentLink(link.getAttribute("href"))) {
+      link.removeAttribute("href");
+    }
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  });
 }
 
 function searchTree(keyword) {
@@ -564,6 +1373,20 @@ searchInput.addEventListener("input", (event) => {
 backBtn.addEventListener("click", () => {
   if (!currentFolder.parent) return;
   setCurrentFolderByPathKey(currentFolder.parent.pathKey);
+});
+
+previewCloseBtn.addEventListener("click", closePreview);
+
+previewModal.addEventListener("click", (event) => {
+  if (event.target instanceof HTMLElement && event.target.dataset.previewClose !== undefined) {
+    closePreview();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !previewModal.hidden) {
+    closePreview();
+  }
 });
 
 init();

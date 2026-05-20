@@ -3,11 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lybris 学科资料书架</title>
+    <title>Lybris 学科资料站模板</title>
     <meta
       name="description"
-      content="Lybris 学科资料书架模板，资料由外部存储同步为静态索引，并在页面中统一浏览。"
+      content="面向多学科资料整理、上传、索引与共享的静态站点模板。"
     />
+    <link rel="stylesheet" href="vendor/viewerjs/viewer.min.css" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -21,7 +22,7 @@
             <p class="eyebrow">Vitemis Library Shelf</p>
             <h1 class="site-title">
               <span id="brandName" class="title-en">Lybris</span>
-              <span id="subjectName" class="title-cn">学科资料站</span>
+              <span id="subjectName" class="title-cn">学科资料库</span>
             </h1>
             <p id="siteSubtitle">课本知识上传与共享计划</p>
           </div>
@@ -30,8 +31,8 @@
         <aside class="source-card">
           <div>
             <p class="source-label">资料源</p>
-            <strong id="sourceName">静态索引</strong>
-            <span id="sourceUpdated">等待同步</span>
+            <strong id="sourceName">Lybris 资料索引</strong>
+            <span id="sourceUpdated">待配置资料源</span>
           </div>
           <a
             id="openAllBtn"
@@ -40,7 +41,7 @@
             target="_blank"
             rel="noopener noreferrer"
           >
-            打开源文件夹
+            资料源待配置
           </a>
         </aside>
       </header>
@@ -73,8 +74,8 @@
         <article class="source-overview glass-panel">
           <span class="type-badge source">SOURCE</span>
           <div>
-            <strong id="sourceSummaryTitle">Lybris 资料库</strong>
-            <p id="sourceSummaryText">资料由外部存储同步为静态索引，页面优先呈现可浏览的学科书架。</p>
+            <strong id="sourceSummaryTitle">学科资料库</strong>
+            <p id="sourceSummaryText">用于组织课程讲义、学习笔记、习题与真题、参考资料和拓展阅读。</p>
           </div>
         </article>
       </section>
@@ -102,6 +103,36 @@
       </main>
     </div>
 
+    <div id="previewModal" class="preview-modal" aria-hidden="true" hidden>
+      <div class="preview-backdrop" data-preview-close></div>
+      <section class="preview-dialog glass-panel" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+        <header class="preview-header">
+          <div class="preview-heading">
+            <span id="previewBadge" class="type-badge file">PREVIEW</span>
+            <h2 id="previewTitle">资料预览</h2>
+          </div>
+          <div class="preview-controls">
+            <a
+              id="previewOpenOriginal"
+              class="btn secondary"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开原文件
+            </a>
+            <button id="previewCloseBtn" class="preview-close-btn" type="button" aria-label="关闭预览">
+              关闭
+            </button>
+          </div>
+        </header>
+        <div id="previewContent" class="preview-content"></div>
+      </section>
+    </div>
+
+    <script src="vendor/markdown-it/markdown-it.js"></script>
+    <script src="vendor/dompurify/purify.min.js"></script>
+    <script src="vendor/viewerjs/viewer.min.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

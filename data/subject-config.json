@@ -1,34 +1,41 @@
 {
-  "subjectId": "calculus-and-analysis",
-  "subjectName": "数学分析 / 微积分",
-  "description": "学科资料集合示例。迁移到其他学科时，替换本文件中的学科标识、名称、说明、分类和低权重装饰标签即可。",
+  "subjectId": "general-subject",
+  "subjectName": "学科资料库",
+  "description": "用于组织课程讲义、学习笔记、习题与真题、参考资料和拓展阅读的通用资料站模板。",
   "categories": [
     {
-      "id": "course-notes",
-      "name": "课程笔记",
-      "description": "按课程或章节整理的课堂笔记。"
+      "id": "lectures",
+      "name": "课程讲义",
+      "description": "课程大纲、讲义、课件和教师发布的学习材料。"
     },
     {
-      "id": "seminar-problems",
-      "name": "研讨班题目",
-      "description": "研讨班、习题课或专题训练材料。"
+      "id": "notes",
+      "name": "学习笔记",
+      "description": "课堂笔记、阅读笔记、整理稿和复习提纲。"
     },
     {
-      "id": "past-exams",
-      "name": "历年真题",
-      "description": "课程考试、竞赛或其他测验资料。"
+      "id": "exercises",
+      "name": "习题与真题",
+      "description": "练习题、作业、测验、真题和参考答案。"
     },
     {
       "id": "references",
       "name": "参考资料",
-      "description": "补充阅读、整理稿和其他共享资料。"
+      "description": "教材、论文、手册、工具文档和其他补充资料。"
+    },
+    {
+      "id": "extended-reading",
+      "name": "拓展阅读",
+      "description": "面向进阶学习、跨学科探索或专题延伸的阅读材料。"
     }
   ],
   "decorativeChips": [
-    "Course Notes",
-    "Shared Shelf",
-    "Reference Pack",
-    "Study Index",
-    "Open Materials"
+    "Notes",
+    "Textbook",
+    "Archive",
+    "Course",
+    "Reference",
+    "Markdown",
+    "PDF"
   ]
 }

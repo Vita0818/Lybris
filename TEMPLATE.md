@@ -1,98 +1,91 @@
-# 小站模板说明（可复用）
+# Lybris 模板复用说明
 
-## 1) 适用场景
-这个模板适合以下类型的轻量内容站点：
+## 1. 适用场景
 
-- 个人笔记站（按主题/课程分层管理文件）
-- 课程资料站（讲义、作业、参考资料统一入口）
-- PDF 文件导航站（以目录树方式浏览和打开 PDF）
-- Google Drive 公开文件夹索引站（Drive 为存储源）
-- GitHub Pages 静态小站（零后端部署、低维护成本）
+Lybris 是一个多学科资料站模板，适合以下轻量内容站点：
 
----
+- 课程资料站：讲义、作业、阅读材料和参考资料统一入口。
+- 学科资料库：按课程、章节、主题或资料类型分层管理。
+- 个人或团队学习档案：笔记、PDF、Markdown、链接和归档资料集中浏览。
+- Google Drive 或其他外部资料源索引站：用静态 JSON 驱动前端展示。
+- GitHub Pages 静态小站：零后端部署、低维护成本。
 
-## 2) 技术架构
-模板采用“静态前端 + 外部文件索引”的组合：
+模板仓库只提供通用结构，不绑定任何具体学科。复制到具体学科仓库后，再替换配置和资料索引。
 
-- **GitHub Pages** 托管 `index.html + style.css + script.js`
-- **Google Drive** 存储实际文件（PDF/资料）
-- **Google Apps Script** 扫描 Drive 目录并输出 JSON
-- **GitHub Actions** 定时拉取 JSON 并更新 `data/drive-index.json`
-- **前端脚本** 读取 `data/drive-index.json`，渲染 Finder 风格浏览器
+## 2. 技术架构
 
----
+模板采用“静态前端 + 外部资料索引”的组合：
 
-## 3) 文件结构说明
-模板核心文件（及职责）如下：
+- GitHub Pages 托管 `index.html`、`style.css`、`script.js` 和 `data/*.json`。
+- 外部资料源存储实际文件，可以是 Google Drive，也可以是能生成同结构 JSON 的其他来源。
+- GitHub Actions 可定时拉取外部 JSON 并更新 `data/drive-index.json`。
+- 前端脚本读取 `data/site-config.json`、`data/subject-config.json` 和 `data/drive-index.json` 后渲染资料书架。
 
-- `index.html`：页面骨架（标题、头像、按钮、搜索、左右面板容器）
-- `style.css`：Finder 风格视觉样式（布局、卡片、列表、标签等）
-- `script.js`：数据加载、目录树渲染、导航、搜索、回退逻辑
-- `assets/avatar.png`：头像资源
-- `data/drive-index.json`：前端读取的目录索引数据
-- `data/google-apps-script.js` **或** 根目录 `google-apps-script.js`：Drive 扫描脚本样例
-- `.github/workflows/update-drive-index.yml`：定时/手动更新 `drive-index.json`
+## 3. 文件结构说明
 
----
+- `index.html`：页面骨架，包含标题、头像、搜索、概览、导航、资源列表和预览弹窗容器。
+- `style.css`：视觉样式，包括玻璃面板、卡片、按钮、目录树、移动端布局和预览阅读样式。
+- `script.js`：数据加载、目录树渲染、导航、搜索、预览和 fallback 逻辑。
+- `assets/avatar.png`：默认头像资源。
+- `data/site-config.json`：站点级配置。
+- `data/subject-config.json`：学科级配置。
+- `data/drive-index.json`：前端读取的资料索引缓存。
+- `google-apps-script.js`：Google Drive 扫描脚本样例。
+- `.github/workflows/update-drive-index.yml`：定时或手动更新资料索引。
 
-## 4) 数据流
+## 4. 数据流
 
 ```text
-Google Drive
-   ↓（扫描）
-Google Apps Script 输出 JSON（Web App）
-   ↓（定时/手动拉取）
-GitHub Actions
-   ↓（写入仓库）
+外部资料源
+   ↓ 生成 JSON
+资料索引 URL
+   ↓ GitHub Actions 拉取
 data/drive-index.json
-   ↓（前端 fetch）
-网页渲染 Finder 风格文件浏览器
+   ↓ 前端 fetch
+Lybris 页面渲染资料书架
 ```
 
----
+## 5. 页面功能清单
 
-## 5) 页面功能清单
-当前模板可抽象为以下通用模块：
+- 顶部品牌区和学科说明。
+- 资料源入口按钮。
+- 搜索框。
+- 返回上一级按钮。
+- 面包屑路径导航。
+- 左侧文件夹树。
+- 右侧当前文件夹内容。
+- 可预览资源的 PDF / Markdown 网页内预览。
+- 原文件打开链接。
+- 配置或索引加载失败时的中性 fallback。
 
-- 顶部标题区（站点标题 + 副标题）
-- 头像展示区
-- “打开总文件夹”按钮（跳转 Drive 根目录）
-- 搜索框（按关键字过滤）
-- 返回上一级按钮
-- 面包屑路径导航
-- 左侧文件夹树（层级目录）
-- 右侧当前文件夹内容（文件夹/文件）
-- PDF 打开链接（新窗口打开）
-- fallback 空目录机制（无内容时给出空状态而不报错）
+## 6. 视觉风格边界
 
----
+模板核心视觉应保持中性：
 
-## 6) 视觉风格特征
-模板默认风格可总结为：
+- 极浅蓝绿背景。
+- 半透明白色玻璃面板。
+- 连续圆角、细描边、轻阴影。
+- serif 标题或数字，中文使用系统字体。
+- 装饰标签只使用通用词，例如 Notes、Textbook、Archive、Course、Reference、Markdown、PDF。
 
-- macOS Finder 风格布局
-- Apple 系默认字体栈
-- 白色 / 浅灰背景基调
-- 圆角卡片与轻阴影
-- 浅蓝绿色公式浮动标签（用于气质强化）
-- 文件行 / 文件卡片双形态展示
+不要把某一学科的公式、符号、课程编号或专有术语写进模板核心。具体学科气质应通过 `subject-config.json` 和资料索引配置体现。
 
----
+## 7. 复制到具体学科仓库
 
-## 7) 迁移到新站点的复用步骤
-1. 新建 GitHub 仓库并放入模板文件。
-2. 替换站点标题与副标题（`index.html`）。
-3. 替换头像资源（`assets/avatar.png`）。
-4. 替换 Google Drive 根文件夹 ID / URL（前端配置与文案）。
-5. 在 Google Apps Script 中部署新的 Drive 扫描 Web App。
-6. 在 GitHub 仓库 Secrets 中设置 JSON 来源地址（如 `DRIVE_INDEX_SOURCE_URL`）。
-7. 启用 GitHub Pages（通常从 `main`/`master` 分支根目录发布）。
-8. 手动运行一次 workflow，确认 `data/drive-index.json` 成功更新。
-9. 打开站点验证：目录树、搜索、PDF 链接均可用。
+1. 新建具体学科仓库，并复制 Lybris 模板文件。
+2. 修改 `data/site-config.json`：站点标题、描述、资料源入口、按钮文案。
+3. 修改 `data/subject-config.json`：学科标识、学科名称、分类和装饰标签。
+4. 替换 `assets/avatar.png`，如需使用学科或组织头像。
+5. 用真实资料索引替换 `data/drive-index.json`，或配置 `DRIVE_INDEX_SOURCE_URL`。
+6. 如果使用 Google Drive，部署新的 Apps Script Web App。
+7. 在 GitHub 仓库 Secrets 中设置 JSON 来源地址。
+8. 启用 GitHub Pages。
+9. 手动运行一次 workflow，确认资料索引成功更新。
+10. 打开站点验证目录树、搜索、预览和原文件链接。
 
----
+## 8. 复用边界建议
 
-## 8) 复用边界建议
-- 前端展示层可定制（文案、主题色、卡片样式）。
-- 数据结构应保持稳定（避免随意改 `script.js` 依赖字段）。
-- 自动同步链路（Apps Script + Actions）优先保持不变，降低维护风险。
+- 前端展示层可定制文案、主题色、卡片样式和分类名称。
+- 数据结构应保持稳定，避免随意改动 `script.js` 依赖字段。
+- 自动同步链路优先保持简单：外部资料源生成 JSON，Actions 同步到 `data/drive-index.json`。
+- 模板仓库保留通用默认状态；具体课程、学科和真实资料应留在学科仓库。
