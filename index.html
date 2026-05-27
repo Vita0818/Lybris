@@ -12,93 +12,57 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div id="decorativeChips" class="ambient-chips" aria-hidden="true"></div>
-
     <div class="app-shell">
-      <header class="hero-panel glass-panel">
-        <div class="brand">
+      <aside class="library-sidebar glass-panel" aria-label="资料库侧栏">
+        <header class="sidebar-brand">
           <img id="siteAvatar" src="assets/avatar.png" alt="站点头像" class="avatar" />
           <div class="brand-copy">
-            <p class="eyebrow">Vitemis Library Shelf</p>
             <h1 class="site-title">
               <span id="brandName" class="title-en">Lybris</span>
               <span id="subjectName" class="title-cn">学科资料库</span>
             </h1>
             <p id="siteSubtitle">课本知识上传与共享计划</p>
+            <a
+              id="openAllBtn"
+              class="source-link"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              资料源
+            </a>
           </div>
-        </div>
+        </header>
 
-        <aside class="source-card">
-          <div>
-            <p class="source-label">资料源</p>
-            <strong id="sourceName">Lybris 资料索引</strong>
-            <span id="sourceUpdated">待配置资料源</span>
+        <section class="search-panel" aria-label="资料搜索与分类">
+          <div class="search-head">
+            <label class="search-label" for="searchInput">搜索</label>
+            <button id="backBtn" class="icon-btn back-control" type="button" aria-label="返回上一级">
+              <span aria-hidden="true"></span>
+            </button>
           </div>
-          <a
-            id="openAllBtn"
-            class="btn secondary"
-            href="#"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            资料源待配置
-          </a>
-        </aside>
-      </header>
+          <input id="searchInput" type="search" placeholder="搜索" aria-label="搜索" />
+          <nav id="categoryPills" class="category-pills" aria-label="资源分类"></nav>
+        </section>
 
-      <section class="search-panel glass-panel" aria-label="资料搜索与分类">
-        <div class="search-head">
-          <label class="search-label" for="searchInput">搜索资料库</label>
-          <button id="backBtn" class="btn ghost" type="button">返回上一级</button>
-        </div>
-        <input id="searchInput" type="search" placeholder="搜索资料、课程、文件名..." aria-label="搜索" />
-        <nav id="categoryPills" class="category-pills" aria-label="资源分类"></nav>
-      </section>
-
-      <section class="overview-grid" aria-label="学科资料概览">
-        <article class="metric-card glass-panel">
-          <span class="metric-label">资料集</span>
-          <strong id="folderCount">0</strong>
-          <small>Collection</small>
-        </article>
-        <article class="metric-card glass-panel">
-          <span class="metric-label">资料</span>
-          <strong id="fileCount">0</strong>
-          <small>Resource</small>
-        </article>
-        <article class="metric-card glass-panel">
-          <span class="metric-label">最近同步</span>
-          <strong id="latestUpdate">-</strong>
-          <small>Static index</small>
-        </article>
-        <article class="source-overview glass-panel">
-          <span class="type-badge source">SOURCE</span>
-          <div>
-            <strong id="sourceSummaryTitle">学科资料库</strong>
-            <p id="sourceSummaryText">用于组织课程讲义、学习笔记、习题与真题、参考资料和拓展阅读。</p>
-          </div>
-        </article>
-      </section>
-
-      <main class="library-layout">
-        <aside class="sidebar glass-panel">
+        <section class="sidebar-library-nav" aria-label="目录导航">
           <div class="panel-head">
-            <p class="eyebrow">Collections</p>
-            <h2 id="sidebarTitle">资料导航</h2>
+            <h2 id="sidebarTitle">目录</h2>
           </div>
           <nav id="folderTree" class="folder-tree" aria-label="完整文件夹树"></nav>
-        </aside>
+        </section>
+      </aside>
 
+      <main class="library-workspace">
         <section class="library-main glass-panel">
           <div class="view-head">
             <div>
-              <p class="eyebrow">Current Shelf</p>
               <h2 id="viewTitle">全部资料</h2>
             </div>
             <span id="resultCount" class="count-pill"></span>
           </div>
           <nav id="breadcrumb" class="breadcrumb" aria-label="当前路径"></nav>
-          <div id="contentList" class="content-grid"></div>
+          <div id="contentList" class="library-content"></div>
         </section>
       </main>
     </div>

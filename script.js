@@ -16,10 +16,10 @@ const fallbackSiteConfig = {
   avatarAlt: "站点头像",
   driveFolderUrl: "",
   rootLabel: "全部资料",
-  openAllLabel: "资料源待配置",
-  searchPlaceholder: "搜索资料、课程、文件名...",
+  openAllLabel: "打开资料源",
+  searchPlaceholder: "搜索",
   backLabel: "返回上一级",
-  sidebarTitle: "资料导航",
+  sidebarTitle: "目录",
   openLabel: "打开",
   previewLabel: "预览",
   openOriginalLabel: "打开原文件",
@@ -38,9 +38,9 @@ const fallbackSiteConfig = {
   enterLabel: "进入",
   folderTypeLabel: "资料集",
   fileTypeLabel: "资料",
-  emptyRootMessage: "尚未配置资料索引。请在 data/drive-index.json 或 DRIVE_INDEX_SOURCE_URL 中配置资料来源。",
-  emptyFolderMessage: "这个资料集暂时没有内容，可以在资料源中添加讲义、笔记或参考资料。",
-  noResultsMessage: "没有匹配的资料。"
+  emptyRootMessage: "暂无资料",
+  emptyFolderMessage: "暂无资料",
+  noResultsMessage: "未找到结果"
 };
 
 const fallbackSubjectConfig = {
@@ -79,15 +79,7 @@ const subjectName = document.getElementById("subjectName");
 const siteSubtitle = document.getElementById("siteSubtitle");
 const siteAvatar = document.getElementById("siteAvatar");
 const sidebarTitle = document.getElementById("sidebarTitle");
-const decorativeChips = document.getElementById("decorativeChips");
 const categoryPills = document.getElementById("categoryPills");
-const folderCount = document.getElementById("folderCount");
-const fileCount = document.getElementById("fileCount");
-const latestUpdate = document.getElementById("latestUpdate");
-const sourceUpdated = document.getElementById("sourceUpdated");
-const sourceName = document.getElementById("sourceName");
-const sourceSummaryTitle = document.getElementById("sourceSummaryTitle");
-const sourceSummaryText = document.getElementById("sourceSummaryText");
 const previewModal = document.getElementById("previewModal");
 const previewTitle = document.getElementById("previewTitle");
 const previewBadge = document.getElementById("previewBadge");
@@ -143,38 +135,18 @@ function applyConfig() {
   siteSubtitle.textContent = siteConfig.subtitle || subjectConfig.description || "";
   siteAvatar.src = siteConfig.avatarUrl || fallbackSiteConfig.avatarUrl;
   siteAvatar.alt = siteConfig.avatarAlt || `${siteConfig.brandName || fallbackSiteConfig.brandName} 头像`;
-  openAllBtn.textContent = siteConfig.openAllLabel || fallbackSiteConfig.openAllLabel;
-  openAllBtn.href = siteConfig.driveFolderUrl || "#";
+  updateSourceLink();
   searchInput.placeholder = siteConfig.searchPlaceholder || fallbackSiteConfig.searchPlaceholder;
-  backBtn.textContent = siteConfig.backLabel || fallbackSiteConfig.backLabel;
+  const backLabel = siteConfig.backLabel || fallbackSiteConfig.backLabel;
+  backBtn.setAttribute("aria-label", backLabel);
+  backBtn.title = backLabel;
   sidebarTitle.textContent = siteConfig.sidebarTitle || fallbackSiteConfig.sidebarTitle;
   previewCloseBtn.textContent = siteConfig.closeLabel || fallbackSiteConfig.closeLabel;
   previewCloseBtn.setAttribute("aria-label", siteConfig.closeLabel || fallbackSiteConfig.closeLabel);
   previewOpenOriginal.textContent = siteConfig.openOriginalLabel || fallbackSiteConfig.openOriginalLabel;
   viewTitle.textContent = getRootLabel();
-  sourceName.textContent = `${siteConfig.brandName || fallbackSiteConfig.brandName} 资料索引`;
-  sourceSummaryTitle.textContent = subjectConfig.subjectName || fallbackSubjectConfig.subjectName;
-  sourceSummaryText.textContent = subjectConfig.description || fallbackSubjectConfig.description;
 
-  renderDecorativeChips();
   renderCategoryPills();
-}
-
-function renderDecorativeChips() {
-  decorativeChips.innerHTML = "";
-  const chips = Array.isArray(subjectConfig.decorativeChips) ? subjectConfig.decorativeChips : [];
-  decorativeChips.hidden = chips.length === 0;
-
-  chips.slice(0, 5).forEach((chip, index) => {
-    const chipText = typeof chip === "string" ? chip : chip?.text;
-    if (!chipText) return;
-
-    const tone = typeof chip === "object" && chip?.tone ? chip.tone : index % 2 === 0 ? "blue" : "green";
-    const item = document.createElement("span");
-    item.className = `chip chip-${tone}`;
-    item.textContent = chipText;
-    decorativeChips.appendChild(item);
-  });
 }
 
 function renderCategoryPills() {
@@ -194,9 +166,6 @@ function renderCategoryPills() {
     const pill = document.createElement("span");
     pill.className = "category-pill";
     pill.style.setProperty("--pill-color", categoryToneColors[index % categoryToneColors.length]);
-    if (category.description) {
-      pill.title = category.description;
-    }
 
     const label = document.createElement("strong");
     label.textContent = category.name || category.id || "未命名分类";
@@ -389,23 +358,25 @@ function setCurrentFolderByPathKey(pathKey) {
 }
 
 function renderOverview() {
-  const nodes = flattenNodes(rootTree);
-  const folders = nodes.filter((node) => node.type === "folder");
-  const files = nodes.filter((node) => node.type === "file");
-  const latest = getLatestUpdatedAt(nodes);
-
-  folderCount.textContent = `${folders.length}`;
-  fileCount.textContent = `${files.length}`;
-  latestUpdate.textContent = latest || "-";
-  sourceUpdated.textContent = latest ? `最近同步 ${latest}` : "待配置资料源";
+  updateSourceLink();
 }
 
-function getLatestUpdatedAt(nodes) {
-  const sortedDates = nodes
-    .map((node) => node.updatedAt)
-    .filter((value) => value && value !== "-")
-    .sort((a, b) => b.localeCompare(a));
-  return sortedDates[0];
+function updateSourceLink() {
+  const sourceUrl = siteConfig.driveFolderUrl || rootTree.url || "";
+  if (sourceUrl && sourceUrl !== "#") {
+    openAllBtn.href = sourceUrl;
+    openAllBtn.textContent = siteConfig.openAllLabel || fallbackSiteConfig.openAllLabel;
+    openAllBtn.removeAttribute("aria-disabled");
+    return;
+  }
+
+  openAllBtn.removeAttribute("href");
+  openAllBtn.textContent = "资料源未配置";
+  openAllBtn.setAttribute("aria-disabled", "true");
+}
+
+function getChildCount(node) {
+  return Array.isArray(node?.children) ? node.children.length : 0;
 }
 
 function renderFolderTree() {
@@ -419,8 +390,14 @@ function renderFolderTree() {
     item.style.paddingLeft = `${node.depth * 14 + 10}px`;
 
     const title = document.createElement("span");
+    title.className = "tree-label";
     title.textContent = node.title;
-    item.appendChild(title);
+
+    const count = document.createElement("span");
+    count.className = "tree-count";
+    count.textContent = getChildCount(node);
+
+    item.append(title, count);
 
     if (node.pathKey === currentFolder.pathKey) item.classList.add("active");
     item.addEventListener("click", () => setCurrentFolderByPathKey(node.pathKey));
@@ -440,7 +417,12 @@ function renderBreadcrumb() {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = idx === 0 ? getRootLabel() : node.title;
-    button.addEventListener("click", () => setCurrentFolderByPathKey(node.pathKey));
+    if (idx === currentPath.length - 1) {
+      button.className = "current";
+      button.disabled = true;
+    } else {
+      button.addEventListener("click", () => setCurrentFolderByPathKey(node.pathKey));
+    }
     breadcrumb.appendChild(button);
   });
 }
@@ -458,7 +440,6 @@ function renderFolderView() {
   const folderChildren = currentFolder.children || [];
   resultCount.textContent = `共 ${folderChildren.length} 项`;
 
-  contentList.innerHTML = "";
   if (folderChildren.length === 0) {
     renderEmptyMessage(
       currentFolder === rootTree
@@ -469,11 +450,42 @@ function renderFolderView() {
   }
 
   const children = sortChildren(folderChildren);
-  children.forEach((item) => {
-    const action = createOpenAction(item);
-    const pathText = readablePath(buildPathFromNode(item).slice(1, -1));
-    contentList.appendChild(createCard(item, pathText, action));
+  const entries = children.map((item) => ({
+    node: item,
+    action: createPrimaryAction(item)
+  }));
+
+  renderLibrarySections(entries);
+}
+
+function createPrimaryAction(item) {
+  if (item.type === "folder") {
+    return createEnterAction(item);
+  }
+
+  return createOpenAction(item);
+}
+
+function createEnterAction(item) {
+  const action = document.createElement("button");
+  action.type = "button";
+  action.className = "btn ghost";
+  action.textContent = siteConfig.enterLabel || fallbackSiteConfig.enterLabel;
+  action.addEventListener("click", () => setCurrentFolderByPathKey(item.pathKey));
+  return action;
+}
+
+function createSearchEnterAction(item) {
+  const action = document.createElement("button");
+  action.type = "button";
+  action.className = "btn ghost";
+  action.textContent = siteConfig.enterLabel || fallbackSiteConfig.enterLabel;
+  action.addEventListener("click", () => {
+    activeSearch = "";
+    searchInput.value = "";
+    setCurrentFolderByPathKey(item.pathKey);
   });
+  return action;
 }
 
 function createOpenAction(item) {
@@ -495,19 +507,66 @@ function createPreviewAction(item) {
   return action;
 }
 
-function renderEmptyMessage(message) {
+function renderEmptyMessage(message, titleText = "") {
   contentList.innerHTML = "";
   const empty = document.createElement("div");
-  empty.className = "empty-message muted";
-  empty.textContent = message;
+  empty.className = "empty-state";
+
+  const text = document.createElement("p");
+  text.textContent = titleText || message;
+  empty.appendChild(text);
+
+  const sourceUrl = siteConfig.driveFolderUrl || rootTree.url || "";
+  if (currentFolder === rootTree && sourceUrl && sourceUrl !== "#") {
+    const link = document.createElement("a");
+    link.className = "btn ghost";
+    link.href = sourceUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = getConfigText("openAllLabel");
+    empty.appendChild(link);
+  }
+
   contentList.appendChild(empty);
 }
 
-function getTypeLabel(item) {
-  if (item.type === "folder") {
-    return siteConfig.folderTypeLabel || fallbackSiteConfig.folderTypeLabel;
+function createContentSection(title, entries, containerClassName) {
+  const section = document.createElement("section");
+  section.className = "content-section";
+
+  const heading = document.createElement("div");
+  heading.className = "section-title";
+
+  const headingText = document.createElement("h3");
+  headingText.textContent = title;
+
+  const count = document.createElement("span");
+  count.textContent = `${entries.length} 项`;
+
+  heading.append(headingText, count);
+
+  const container = document.createElement("div");
+  container.className = containerClassName;
+  entries.forEach((entry) => {
+    container.appendChild(createCard(entry.node, entry.action));
+  });
+
+  section.append(heading, container);
+  return section;
+}
+
+function renderLibrarySections(entries) {
+  contentList.innerHTML = "";
+  const folders = entries.filter((entry) => entry.node.type === "folder");
+  const files = entries.filter((entry) => entry.node.type === "file");
+
+  if (folders.length > 0) {
+    contentList.appendChild(createContentSection("资料集", folders, "collection-grid"));
   }
-  return siteConfig.fileTypeLabel || fallbackSiteConfig.fileTypeLabel;
+
+  if (files.length > 0) {
+    contentList.appendChild(createContentSection("资料", files, "resource-list"));
+  }
 }
 
 function getFileSignals(item) {
@@ -558,7 +617,7 @@ function getPreviewKind(item) {
 }
 
 function getBadgeLabel(item) {
-  if (item.type === "folder") return "FOLDER";
+  if (item.type === "folder") return "资料集";
 
   const previewKind = getPreviewKind(item);
   if (previewKind === "pdf") return "PDF";
@@ -583,22 +642,14 @@ function getBadgeClass(item) {
   return item.url ? "link" : "file";
 }
 
-function formatUpdatedAt(item) {
-  return item.updatedAt && item.updatedAt !== "-" ? item.updatedAt : "未标注";
-}
-
-function readablePath(pathNodes) {
-  return pathNodes.map((item) => item.title).join(" / ") || getRootLabel();
-}
-
-function createCard(item, pathText, actionNode) {
+function createCard(item, actionNode) {
   const card = document.createElement("article");
   card.className = `library-card ${item.type === "folder" ? "collection-card" : "resource-card"}`;
   const previewKind = getPreviewKind(item);
 
   const main = document.createElement("div");
   main.className = "card-main";
-  if (previewKind) {
+  if (item.type === "file" && previewKind) {
     main.classList.add("preview-trigger");
     main.setAttribute("role", "button");
     main.tabIndex = 0;
@@ -617,11 +668,7 @@ function createCard(item, pathText, actionNode) {
   badge.className = `type-badge ${getBadgeClass(item)}`;
   badge.textContent = getBadgeLabel(item);
 
-  const meta = document.createElement("span");
-  meta.className = "card-meta";
-  meta.textContent = `${getTypeLabel(item)} · 更新 ${formatUpdatedAt(item)}`;
-
-  topline.append(badge, meta);
+  topline.appendChild(badge);
 
   const title = document.createElement(item.type === "folder" ? "button" : "div");
   title.className = item.type === "folder" ? "card-title name-btn" : "card-title";
@@ -631,15 +678,15 @@ function createCard(item, pathText, actionNode) {
     title.addEventListener("click", () => setCurrentFolderByPathKey(item.pathKey));
   }
 
-  const path = document.createElement("p");
-  path.className = "card-path";
-  path.textContent = item.category ? `分类：${item.category}` : `路径：${pathText}`;
+  const copy = document.createElement("div");
+  copy.className = "card-copy";
+  copy.append(topline, title);
 
-  main.append(topline, title, path);
+  main.appendChild(copy);
 
   const actions = document.createElement("div");
   actions.className = "card-actions";
-  if (previewKind) {
+  if (item.type === "file" && previewKind) {
     actions.appendChild(createPreviewAction(item));
   }
   actions.appendChild(actionNode);
@@ -1299,34 +1346,18 @@ function renderSearchResults() {
   const results = searchTree(activeSearch);
   viewTitle.textContent = `搜索：${activeSearch}`;
   resultCount.textContent = `共 ${results.length} 项`;
-  contentList.innerHTML = "";
 
   if (results.length === 0) {
     renderEmptyMessage(siteConfig.noResultsMessage || fallbackSiteConfig.noResultsMessage);
     return;
   }
 
-  results.forEach(({ node, path }) => {
-    const action = document.createElement(node.type === "folder" ? "button" : "a");
-    action.className = "btn ghost";
-    if (node.type === "folder") {
-      action.type = "button";
-      action.textContent = siteConfig.enterLabel || fallbackSiteConfig.enterLabel;
-      action.addEventListener("click", () => {
-        activeSearch = "";
-        searchInput.value = "";
-        setCurrentFolderByPathKey(node.pathKey);
-      });
-    } else {
-      action.href = node.url || getConfiguredDriveFolderUrl();
-      action.target = "_blank";
-      action.rel = "noopener noreferrer";
-      action.textContent = siteConfig.openLabel || fallbackSiteConfig.openLabel;
-    }
+  const entries = results.map(({ node }) => ({
+    node,
+    action: node.type === "folder" ? createSearchEnterAction(node) : createOpenAction(node)
+  }));
 
-    const folderPath = readablePath(path.slice(1, -1));
-    contentList.appendChild(createCard(node, folderPath, action));
-  });
+  renderLibrarySections(entries);
 }
 
 function render() {
@@ -1352,7 +1383,6 @@ async function loadTree() {
   nodeMap = new Map();
   rootTree = buildRuntimeTree(rootTree);
 
-  openAllBtn.href = siteConfig.driveFolderUrl || rootTree.url || "#";
   currentFolder = rootTree;
   currentPath = [rootTree];
   renderOverview();

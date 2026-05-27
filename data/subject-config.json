@@ -1,7 +1,7 @@
 {
   "subjectId": "general-subject",
   "subjectName": "学科资料库",
-  "description": "用于组织课程讲义、学习笔记、习题与真题、参考资料和拓展阅读的通用资料站模板。",
+  "description": "多学科资料书架。",
   "categories": [
     {
       "id": "lectures",
@@ -29,13 +29,5 @@
       "description": "面向进阶学习、跨学科探索或专题延伸的阅读材料。"
     }
   ],
-  "decorativeChips": [
-    "Notes",
-    "Textbook",
-    "Archive",
-    "Course",
-    "Reference",
-    "Markdown",
-    "PDF"
-  ]
+  "decorativeChips": []
 }

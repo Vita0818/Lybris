@@ -8,10 +8,10 @@
   "avatarAlt": "Lybris 站点头像",
   "driveFolderUrl": "",
   "rootLabel": "全部资料",
-  "openAllLabel": "资料源待配置",
-  "searchPlaceholder": "搜索资料、课程、文件名...",
+  "openAllLabel": "打开资料源",
+  "searchPlaceholder": "搜索",
   "backLabel": "返回上一级",
-  "sidebarTitle": "资料导航",
+  "sidebarTitle": "目录",
   "openLabel": "打开",
   "previewLabel": "预览",
   "openOriginalLabel": "打开原文件",
@@ -30,7 +30,7 @@
   "enterLabel": "进入",
   "folderTypeLabel": "资料集",
   "fileTypeLabel": "资料",
-  "emptyRootMessage": "尚未配置资料索引。请在 data/drive-index.json 或 DRIVE_INDEX_SOURCE_URL 中配置资料来源。",
-  "emptyFolderMessage": "这个资料集暂时没有内容，可以在资料源中添加讲义、笔记或参考资料。",
-  "noResultsMessage": "没有匹配的资料。"
+  "emptyRootMessage": "暂无资料",
+  "emptyFolderMessage": "暂无资料",
+  "noResultsMessage": "未找到结果"
 }
