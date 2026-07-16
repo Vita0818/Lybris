@@ -1,124 +1,82 @@
-# 工程禁区
+# DO_NOT_BREAK
 
-最近自查日期：2026-05-26
+## 外部依赖优先与禁止功能兜底（Vitemis 强制规则）
 
-## 不得破坏的用户数据格式
+本项目继承 `/Users/vita/Vitemis/docs/DEPENDENCY_POLICY.md`。本节是强制约束，不是建议。
 
-`data/site-config.json`：
+- 当用户指定、仓库已经采用，或经许可证、provenance、安全与平台审查可采用的外部依赖提供同等能力时，必须直接集成该依赖的官方 API 或官方扩展点。
+- 不得自行重写同等能力，不得新增替代 adapter、shim、compatibility layer、wrapper、proxy、facade、协议翻译层、parallel backend、preview backend、shadow implementation 或“先兜底、以后再换”的实现。
+- 本地代码只允许保留官方 API 必需的最薄生命周期、类型、权限、配置和 bundle 接线；不得重新实现、解释、扩展或替代依赖的核心能力。
+- exact 依赖因版本、构建、签名、许可证、平台、安全或官方 API 限制无法接入时，必须停止该能力、明确失败、报告 blocker 并请求用户决定；不得静默降级、切换 legacy/另一 provider/backend、使用 cache/mock/简化路径或继续交付不完整替代实现。
+- 现有 fallback、adapter 或重复实现不构成先例，后续不得扩展。安全 fail-closed 与明确要求的旧数据解码/迁移不是功能兜底，但必须保持最窄范围，不能演化成备用产品实现。
+- 只有用户针对 exact 依赖、exact 范围和退出条件作出的新明文决定才能例外。
 
-- 必须保持合法 JSON。
-- 站点品牌、标题、说明、头像、资料源入口、按钮文案和预览 fallback 文案都被 `script.js` 读取。
-- 删除字段时要确认 `fallbackSiteConfig` 是否覆盖；新增字段要保持向后兼容。
+本文列出不可破坏的工程禁区、数据格式、协议、路径和回归要求。修改前必须确认不违反下列任一条目。
 
-`data/subject-config.json`：
+## 工程禁区
 
-- 必须保持合法 JSON。
-- `categories` 应为数组，分类项至少应能提供 `name` 或 `id`。
-- `decorativeChips` 当前不渲染，但属于兼容字段，不要无理由删除其约定。
+- 不执行破坏性 Git 操作；不强制 push；不删除用户未提交文件。
+- 未经用户明文要求具体 Git 操作，不 add、不 commit、不 push、不创建 PR；编辑、整理、修复、验证或准备工作都不等于提交请求。
+- 若用户要求提交，只提交当前 Git root 中与本任务相关的文件；不得递归进入、暂存、提交或推送子仓库、submodule、nested Git repo 或依赖 checkout。
+- 不绕过本地 vendored 前端库改 CDN 依赖。
+- 不在前端直接读取 GitHub Secret、Apps Script 私有配置或敏感凭据。
 
-`data/drive-index.json`：
+## 数据格式禁区
 
-- 必须保持合法 JSON 树。
-- 文件夹节点应包含 `children` 数组。
-- 节点 `type` 应尽量使用 `folder` 或 `file`；虽然源码会做推断，但外部索引不应依赖模糊类型。
-- 常用字段 `title`、`url`、`category`、`updatedAt` 不应随意重命名。
-- 预览相关字段如 `rawUrl`、`downloadUrl`、`exportUrl`、`contentUrl`、`thumbnailUrl`、`previewUrl`、`embedUrl`、`pdfUrl`、`markdownUrl`、`sourceUrl`、`filePath`、`path` 已被前端兼容，不要在未更新前端逻辑前改变含义。
+- `data/site-config.json`/`subject-config.json`/`drive-index.json` 必须保持有效 JSON。
+- `categories` 必须是数组（`name`/`id`）。
+- `decorativeChips` 是兼容字段（虽不渲染但不得删契约）。
+- drive-index folder 节点必须有 `children`；`type` 应显式 `folder`/`file`。
+- 核心字段 `title`/`url`/`category`/`updatedAt` 不得改名。
+- 所有可选预览 URL 字段（`rawUrl`..`path`）前端兼容，不得复用而不更新前端。
 
-## 不得破坏的文件路径约定
+## 协议禁区
 
-- `index.html` 必须能加载 `style.css`。
-- `index.html` 必须按运行时依赖顺序加载：
-  - `vendor/markdown-it/markdown-it.js`
-  - `vendor/dompurify/purify.min.js`
-  - `vendor/viewerjs/viewer.min.js`
-  - `script.js`
-- `index.html` 必须加载 `vendor/viewerjs/viewer.min.css`，否则图片预览控件样式会失效。
-- `script.js` 中的配置路径当前固定为：
-  - `data/site-config.json`
-  - `data/subject-config.json`
-  - `data/drive-index.json`
-- PDF.js 模块和 worker 路径当前固定为：
-  - `vendor/pdfjs/pdf.mjs`
-  - `vendor/pdfjs/pdf.worker.mjs`
-- 默认头像路径由 `data/site-config.json` 的 `avatarUrl` 指向 `assets/avatar.png`。
-- `.github/workflows/update-drive-index.yml` 默认写入 `data/drive-index.json`。
+- `DRIVE_INDEX_SOURCE_URL` secret 名不得变。
+- 外部索引 URL 必须返回 `python -m json.tool` 可校验的 JSON。
+- `doGet()` 输出结构变更须同步前端解析。
+- 无前端路由器（不得引入 server-rewrite 路由）。
+- 不得用 cookie/localStorage/IndexedDB 存敏感资源链接。
 
-## 不得破坏的 API / 路由 / 协议 / 存储结构
+## 路径禁区
 
-- `DRIVE_INDEX_SOURCE_URL` 是 GitHub Actions secret 名称，不要改名，除非同步更新仓库 secret 和维护文档。
-- 外部索引 URL 必须返回可被 `python -m json.tool` 格式化的 JSON。
-- `google-apps-script.js` 的 `doGet()` 是 Apps Script Web App 输出入口；修改输出结构时必须同步前端索引解析逻辑。
-- 前端没有路由系统，不要引入需要服务器 rewrite 的路由模式，除非同时明确 GitHub Pages 部署策略。
-- 当前没有本地持久化存储。不要引入 cookie、localStorage 或 IndexedDB 来保存敏感资料链接，除非任务明确要求并经过安全设计。
+- `index.html` 必须按序加载：`markdown-it.js` → `purify.min.js` → `viewer.min.js` → `script.js`，并加载 `viewer.min.css`。
+- `script.js` 配置路径固定：`data/site-config.json`/`data/subject-config.json`/`data/drive-index.json`。
+- PDF.js 路径固定：`vendor/pdfjs/pdf.mjs`/`vendor/pdfjs/pdf.worker.mjs`。
+- 默认 avatar 路径 `assets/avatar.png`（经 `avatarUrl`）。
+- 工作流写 `data/drive-index.json`。
 
 ## 不得绕过的安全机制
 
-- Markdown 渲染必须继续禁用原始 HTML 或经过同等强度清洗。
-- DOMPurify 清洗不能被移除。
-- 外链应保持 `target="_blank"` 与 `rel="noopener noreferrer"`。
-- URL 候选必须继续限制为相对 URL 或 `http:`/`https:`，不要允许 `javascript:`、`data:` 等危险协议进入可点击或可预览路径。
-- 前端不得读取或暴露 GitHub secret、Apps Script 私有配置、token、证书或账号信息。
-- 不要把硬编码 Drive 根文件夹 ID、私有索引 URL 或其他敏感配置复制进维护文档。
+- Markdown 必须保持 raw HTML 禁用或同等净化；DOMPurify 不得移除。
+- 外链 `target="_blank"` + `rel="noopener noreferrer"`。
+- URL 候选限制为 relative/`http:`/`https:`（拒 `javascript:`/`data:`）。
+- 前端不得读/暴露 secret/token/凭据。
+- 不得把硬编码 Drive 根文件夹 ID / 私有索引 URL / 敏感配置写入维护文档。
 
 ## 不得随意重构的核心模块
 
-修改前必须先阅读相关源码：
-
-- 配置加载：`script.js` 的 `fallbackSiteConfig`、`fallbackSubjectConfig`、`loadConfigs()`、`applyConfig()`
-- 资料树归一化：`inferNodeKind()`、`safeNode()`、`normalizeTree()`、`buildVisibleRoot()`、`buildRuntimeTree()`
-- 导航状态：`currentFolder`、`currentPath`、`nodeMap`、`setCurrentFolderByPathKey()`
-- 渲染：`renderFolderTree()`、`renderBreadcrumb()`、`renderFolderView()`、`renderLibrarySections()`、`createCard()`
-- 搜索：`searchTree()`、`renderSearchResults()`
-- 预览：`getPreviewKind()`、`renderPdfPreview()`、`renderMarkdownPreview()`、`renderImagePreview()`、`sanitizeResourceUrl()`
-- 自动同步：`.github/workflows/update-drive-index.yml`
-- Drive 示例：`google-apps-script.js`
-
-这些模块互相耦合，尤其是索引字段、预览识别和 DOM 渲染。没有测试覆盖时，不要做大范围重排。
+修改前必读源码：配置加载（`fallbackSiteConfig`/`fallbackSubjectConfig`/`loadConfigs`/`applyConfig`）、树归一化（`inferNodeKind`/`safeNode`/`normalizeTree`/`buildVisibleRoot`/`buildRuntimeTree`）、导航状态（`currentFolder`/`currentPath`/`nodeMap`/`setCurrentFolderByPathKey`）、渲染（`renderFolderTree`/`renderBreadcrumb`/`renderFolderView`/`renderLibrarySections`/`createCard`）、搜索（`searchTree`/`renderSearchResults`）、预览（`getPreviewKind`/`renderPdfPreview`/`renderMarkdownPreview`/`renderImagePreview`/`sanitizeResourceUrl`）、工作流、Apps Script。这些高度耦合（索引字段 ↔ 预览检测 ↔ DOM 渲染）。
 
 ## 不得删除或覆盖的资源
 
-- `vendor/` 下的库文件和 LICENSE 文件。
-- `vendor/README.md` 中的版本和许可证记录。
-- `assets/avatar.png`，除非同步更新 `data/site-config.json`。
-- `data/drive-index.json`，除非本轮任务就是更新资料索引或同步链路。
-- `.github/workflows/update-drive-index.yml`，除非明确调整同步策略。
-- 用户未提交的业务文件改动。
+- `vendor/` 库 + LICENSE + `vendor/README.md` 版本/许可证记录。
+- `assets/avatar.png`（除非配置更新）。
+- `data/drive-index.json`（除非任务是索引/同步）。
+- 工作流（除非调整同步策略）。
+- 用户未提交改动。
 
 ## 不得引入的架构倒退
 
-- 不要把 vendored 运行时依赖改成必须联网的 CDN。
-- 不要把纯静态站改成需要常驻后端服务。
-- 不要让浏览器直接扫描 Google Drive 或读取 secret。
-- 不要把模板仓库绑定到某一具体学科、课程或私有资料源。
-- 不要让样式修改破坏移动端可读性和预览弹窗布局。
-- 不要把资料索引字段改成只适配单一外部源而失去通用性。
+- 无 CDN 运行时依赖。
+- 无常驻后端。
+- 无浏览器直扫 Drive / 读 secret。
+- 不绑定特定学科/课程/私有源。
+- 不破坏移动端可读性 / 预览对话框布局。
+- 不让索引字段单一源特定。
 
-## 修改前必须阅读的关键源码位置
+## 验证要求
 
-- `index.html`
-- `script.js`
-- `style.css`
-- `data/site-config.json`
-- `data/subject-config.json`
-- `data/drive-index.json`
-- `.github/workflows/update-drive-index.yml`
-- `google-apps-script.js`
-- `vendor/README.md`
-
-## 回归验证要求
-
-至少执行：
-
-```bash
-git diff --check
-```
-
-并根据修改范围做手动验证：
-
-- 配置修改：验证页面标题、品牌、头像、资料源按钮、分类 pills。
-- 索引修改：验证目录树、面包屑、搜索、空状态、文件夹和文件卡片。
-- 预览修改：分别验证 PDF、Markdown、图片和不可预览 fallback。
-- 样式修改：验证桌面宽度、平板宽度、手机宽度下无重叠、按钮可点击、弹窗可关闭。
-- Workflow 修改：验证 `DRIVE_INDEX_SOURCE_URL` 缺失和成功下载两种路径的日志表现。
-
-如果没有运行完整构建或测试，最终报告必须明确说明。
+- 至少 `git diff --check`。
+- 按改动范围手动检查（配置/索引/预览/样式/工作流）。
+- 未运行构建/测试时须声明。

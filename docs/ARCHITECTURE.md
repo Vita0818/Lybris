@@ -1,150 +1,89 @@
-# 架构说明
+# ARCHITECTURE
 
-最近自查日期：2026-05-26
+## 外部依赖优先与禁止功能兜底（Vitemis 强制规则）
+
+本项目继承 `/Users/vita/Vitemis/docs/DEPENDENCY_POLICY.md`。本节是强制约束，不是建议。
+
+- 当用户指定、仓库已经采用，或经许可证、provenance、安全与平台审查可采用的外部依赖提供同等能力时，必须直接集成该依赖的官方 API 或官方扩展点。
+- 不得自行重写同等能力，不得新增替代 adapter、shim、compatibility layer、wrapper、proxy、facade、协议翻译层、parallel backend、preview backend、shadow implementation 或“先兜底、以后再换”的实现。
+- 本地代码只允许保留官方 API 必需的最薄生命周期、类型、权限、配置和 bundle 接线；不得重新实现、解释、扩展或替代依赖的核心能力。
+- exact 依赖因版本、构建、签名、许可证、平台、安全或官方 API 限制无法接入时，必须停止该能力、明确失败、报告 blocker 并请求用户决定；不得静默降级、切换 legacy/另一 provider/backend、使用 cache/mock/简化路径或继续交付不完整替代实现。
+- 现有 fallback、adapter 或重复实现不构成先例，后续不得扩展。安全 fail-closed 与明确要求的旧数据解码/迁移不是功能兜底，但必须保持最窄范围，不能演化成备用产品实现。
+- 只有用户针对 exact 依赖、exact 范围和退出条件作出的新明文决定才能例外。
+
+最近自查日期：2026-06-25
 
 ## 总体架构
 
-Lybris 是一个纯静态资料站模板。运行时由浏览器加载 `index.html`、`style.css`、`script.js` 和 `data/*.json`，不需要 Node 服务、数据库或自建后端。
-
-总体链路：
+Lybris 是纯静态资料站模板。运行时由浏览器加载 `index.html`/`style.css`/`script.js`/`data/*.json`，不需要 Node 服务、数据库或自建后端。
 
 ```text
-外部资料源
-  -> JSON 索引 URL
-  -> GitHub Actions 同步
-  -> data/drive-index.json
-  -> 浏览器 fetch
-  -> script.js 归一化资料树
-  -> 目录、卡片、搜索、预览渲染
+外部源 -> JSON 索引 URL -> GitHub Actions -> data/drive-index.json
+  -> 浏览器 fetch -> script.js 归一化树 -> 渲染目录/卡片/搜索/预览
 ```
 
-## 模块边界
-
-- 页面结构层：`index.html` 定义 DOM 容器、侧栏、主内容区和预览弹窗。
-- 样式层：`style.css` 定义布局、视觉、响应式规则和第三方预览控件覆盖样式。
-- 应用逻辑层：`script.js` 直接操作 DOM，不使用前端框架。
-- 配置层：`data/site-config.json` 和 `data/subject-config.json` 提供可替换文案、品牌和分类。
-- 数据层：`data/drive-index.json` 是前端唯一默认资料索引缓存。
-- 外部同步层：`.github/workflows/update-drive-index.yml` 从外部 URL 同步索引；`google-apps-script.js` 是生成 Drive 索引的示例。
-- 第三方运行时层：`vendor/` 保存 PDF.js、markdown-it、DOMPurify、Viewer.js 的浏览器构建和许可证。
-
-## 主要数据模型
-
-站点配置来自 `data/site-config.json`，与 `script.js` 中 `fallbackSiteConfig` 合并。关键字段包括：
-
-- `brandName`、`siteTitle`、`subtitle`、`description`
-- `avatarUrl`、`avatarAlt`
-- `driveFolderUrl`
-- `rootLabel`、`openAllLabel`、`searchPlaceholder`
-- 各类预览标题、加载文案和失败文案
-
-学科配置来自 `data/subject-config.json`，与 `fallbackSubjectConfig` 合并。关键字段包括：
-
-- `subjectId`
-- `subjectName`
-- `description`
-- `categories[]`，每项包含 `id`、`name`、`description`
-- `decorativeChips`，当前极简界面不渲染
-
-资料索引来自 `data/drive-index.json`。前端按树形节点处理：
-
-- `title`：展示名称
-- `type`：`folder` 或 `file`，也兼容部分 MIME/type 推断
-- `url`：打开原文件或资料源的链接
-- `category`：搜索和展示辅助字段
-- `updatedAt`：搜索和展示辅助字段
-- `children`：文件夹子节点数组
-- 可选预览字段：`rawUrl`、`downloadUrl`、`exportUrl`、`contentUrl`、`thumbnailUrl`、`previewUrl`、`embedUrl`、`pdfUrl`、`markdownUrl`、`sourceUrl`、`filePath`、`path`
-- 可选类型字段：`mimeType`、`mime`、`contentType`、`sourceType`、`fileType`、`format`、`kind`
-
-## 关键业务链路
+## 主要链路
 
 ### 初始化链路
-
-1. `init()` 调用 `loadConfigs()`。
-2. `loadConfigs()` 并发读取 `data/site-config.json` 和 `data/subject-config.json`。
-3. 读取失败时使用 `fallbackSiteConfig` 或 `fallbackSubjectConfig`。
-4. `applyConfig()` 把配置写入页面标题、meta description、品牌区、搜索 placeholder、预览按钮和分类 pills。
-5. `loadTree()` 读取 `data/drive-index.json`。
-6. `buildVisibleRoot()` 将外部根节点包装为站点根视图，根标题使用 `rootLabel`。
-7. `buildRuntimeTree()` 为每个节点添加 `parent`、`path`、`pathKey`、`depth`，并写入 `nodeMap`。
-8. `render()` 渲染目录树、面包屑和当前文件夹内容。
+```text
+init() -> loadConfigs() (并行 site+subject fetch, 失败 fallback)
+  -> applyConfig() -> loadTree()
+  -> buildVisibleRoot() (包裹外部 root, 用 rootLabel)
+  -> buildRuntimeTree() (加 parent/path/pathKey/depth, 填 nodeMap)
+  -> render()
+```
 
 ### 导航与搜索链路
-
-- 当前文件夹状态由 `currentFolder` 和 `currentPath` 保存。
-- 文件夹树和面包屑通过 `setCurrentFolderByPathKey()` 切换节点。
-- `pathKey` 基于标题路径生成；同一父级下重复标题可能导致键冲突，这是当前架构风险。
-- 搜索输入写入 `activeSearch`，`searchTree()` 在 `title`、`category`、`updatedAt` 中做大小写不敏感包含匹配。
-- 搜索模式下文件夹结果使用进入按钮，文件结果保留打开链接。
+```text
+状态: currentFolder/currentPath
+切换: setCurrentFolderByPathKey()
+pathKey: 由 title 路径派生（重复 title 碰撞风险）
+搜索: searchTree() 遍历 title/category/updatedAt（不区分大小写 contains）-> activeSearch
+```
 
 ### 卡片渲染链路
+```text
+renderFolderView() -> sortChildren() (文件夹优先, 中文 locale title 排序)
+  -> renderLibrarySections() (folder->"资料集"/collection, file->"资料"/resource)
+  -> createCard() (badge + 主操作 + 按节点类型/可预览性预览入口)
+```
 
-- `renderFolderView()` 读取当前文件夹 children。
-- `sortChildren()` 先排文件夹，再按中文 locale 排标题。
-- `renderLibrarySections()` 把 folder 渲染为“资料集”，file 渲染为“资料”。
-- `createCard()` 根据节点类型和可预览类型决定 badge、主操作和预览入口。
+## 数据模型
 
-## 网络、本地存储、状态管理、后台任务
+| 类型 | 职责 | 关键字段 |
+|---|---|---|
+| site-config | 站点配置 | brandName/siteTitle/subtitle/description/avatarUrl/driveFolderUrl/rootLabel/... |
+| subject-config | 学科配置 | subjectId/subjectName/description/categories[]/decorativeChips |
+| drive-index node | 索引节点 | title/type(folder|file)/url/category/updatedAt/children + 可选预览字段 |
 
-- 网络请求：浏览器端只使用 `fetch()` 读取本仓库相对路径 JSON、PDF/Markdown 候选 URL；图片预览使用图片元素加载候选 URL。
-- 本地存储：未发现 `localStorage`、`sessionStorage`、IndexedDB 或 cookie 使用。
-- 状态管理：全部是 `script.js` 顶层变量和 DOM 状态，不存在框架 store。
-- 后台任务：前端没有后台任务；GitHub Actions 的 `Update Drive Index` 是仓库侧同步任务。
-- 定时器：当前前端未使用 `setInterval()` 或 `setTimeout()`。
+## 网络/存储/状态
+
+- 无 `localStorage`/`sessionStorage`/IndexedDB/cookies；无框架 store；无前端定时器。
+- 唯一后台任务：Actions 工作流。
+- fetch 用 `cache: "no-store"`。
 
 ## 预览机制
 
-PDF：
+- **PDF**：`getPreviewKind()` 检测；`renderPdfPreview()` 用 PDF.js（worker 固定 `vendor/pdfjs/pdf.worker.mjs`）；Drive 文件 fallback 到 `https://drive.google.com/file/d/<FILE_ID>/preview` iframe。
+- **Markdown**：markdown-it（`html:false`/`linkify:true`/`typographer:true`）+ DOMPurify（剥 script/style/iframe/object/embed/form）；链接过 `isSafeDocumentLink()` + `target="_blank"` + `rel="noopener noreferrer"`。
+- **图片**：常见图片扩展 + `image/*` MIME；候选 URL 顺序 rawUrl→downloadUrl→exportUrl→contentUrl→thumbnailUrl→url；Viewer.js 打开；失败 fallback 通用预览对话框 + 原始文件链接。
 
-- `getPreviewKind()` 通过扩展名、MIME、source type 判断 PDF。
-- `renderPdfPreview()` 优先使用 PDF.js 渲染 fetchable PDF 候选 URL。
-- 对 Google Drive 文件链接，无法直接 fetch 时 fallback 到 `https://drive.google.com/file/d/<FILE_ID>/preview` iframe。
-- PDF.js worker 路径固定为 `vendor/pdfjs/pdf.worker.mjs`。
+## 安全机制
 
-Markdown：
-
-- 通过 markdown-it 渲染，配置 `html: false`、`linkify: true`、`typographer: true`。
-- 渲染后使用 DOMPurify 清洗，禁止 `script`、`style`、`iframe`、`object`、`embed`、`form` 等标签。
-- 链接会经过 `isSafeDocumentLink()` 过滤，并设置 `target="_blank"` 与 `rel="noopener noreferrer"`。
-
-图片：
-
-- 支持常见图片扩展名和 `image/*` MIME。
-- 候选 URL 顺序来自 `rawUrl`、`downloadUrl`、`exportUrl`、`contentUrl`、`thumbnailUrl`、`url`。
-- Google Drive 图片会尝试从 URL 提取 file id 并生成可展示候选链接。
-- 成功加载后交给 Viewer.js 打开；失败时回退到通用预览弹窗和原文件链接。
-
-## UI 与业务逻辑分层
-
-当前没有组件框架，UI 与业务逻辑集中在 `script.js` 中：
-
-- DOM 查询集中在文件顶部。
-- 数据加载、归一化、状态切换、渲染和预览逻辑均为函数式组织。
-- `style.css` 只负责视觉和响应式，不包含运行时逻辑。
-
-维护时应避免把数据结构规则散落到样式或 HTML 注释中；数据字段兼容逻辑应集中在 `script.js` 的类型推断、URL 候选和归一化函数附近。
+- 前端永不接触 secret；`DRIVE_INDEX_SOURCE_URL` 仅在 Actions env。
+- `sanitizeResourceUrl()` 仅允许 relative 或 `http:`/`https:`（拒 `javascript:`/`data:`）。
+- Markdown HTML 净化 + raw HTML 禁用。
+- 外链 `target="_blank"` + `rel="noopener noreferrer"`。
+- `google-apps-script.js` 硬编码 Drive 根文件夹 ID 不是认证机制，不得重新发布。
 
 ## 平台边界
 
-- 浏览器平台：负责静态页面、资料树展示、搜索和预览。
-- GitHub Actions 平台：负责从外部索引 URL 同步 `data/drive-index.json`。
-- Google Apps Script 平台：示例性地扫描 Google Drive 文件夹并输出 JSON。
+浏览器 / GitHub Actions / Google Apps Script。明确**不是**多平台 app（无 iOS/Android/desktop/backend/CLI）。
 
-当前不是多端应用，没有 iOS、Android、桌面端、后端服务或 CLI 入口。
+## 风险
 
-## 安全、鉴权、权限、文件访问
-
-- 前端不应接触任何 secret；`DRIVE_INDEX_SOURCE_URL` 只在 GitHub Actions 环境中读取。
-- `sanitizeResourceUrl()` 只允许相对 URL 或 `http:`/`https:` URL 进入预览候选。
-- Markdown HTML 使用 DOMPurify 清洗，且 markdown-it 禁用原始 HTML。
-- 外链均应保持 `rel="noopener noreferrer"`。
-- `google-apps-script.js` 示例中存在硬编码 Drive 根文件夹 ID。该值不是前端鉴权机制，维护文档中不要复写具体值；具体学科站应确认是否可公开。
-
-## 当前架构风险或不确定点
-
-- `pathKey` 基于标题路径，重复标题可能覆盖 `nodeMap` 中的节点。
-- 没有 JSON schema 或自动测试来约束 `data/drive-index.json`。
-- GitHub Actions 对 `contents: write` 并直接 push，适合模板简化链路，但会影响分支保护策略。
-- Apps Script 示例只同步 PDF，而前端预览能力已覆盖 PDF、Markdown、图片；真实多类型索引生成方式需要后续确认。
-- 打开本地 `index.html` 可能因为浏览器限制无法正常 `fetch` 本地 JSON，应使用静态服务器。
+- `pathKey` 碰撞（重复 title）。
+- 无 JSON schema/测试。
+- Actions `contents: write` + push 影响分支保护。
+- Apps Script 仅同步 PDF（前端支持 PDF/Markdown/图片）。
+- `file://` 破坏本地 fetch。

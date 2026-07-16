@@ -1,124 +1,75 @@
-# 构建与测试说明
+# TESTING
 
-最近自查日期：2026-05-26
+## 外部依赖与禁止兜底验证（Vitemis 强制规则）
 
-## 环境要求
+本项目继承 `/Users/vita/Vitemis/docs/DEPENDENCY_POLICY.md`。涉及外部能力的变更必须验证：
 
-- 现代浏览器，需支持 ES module 动态 `import()`、`fetch()`、Canvas 和标准 DOM API。
-- 本地静态服务器。由于页面需要 `fetch` 读取 `data/*.json`，不要直接用 `file://` 打开 `index.html` 作为主要验证方式。
-- 可选：Python 3，用于启动本地静态服务器。
-- 可选：Node.js，仅用于临时执行 `node --check script.js` 之类语法检查；仓库当前没有 Node 项目配置。
-- GitHub Actions 环境用于 `update-drive-index.yml`。
-- Google Apps Script 环境用于运行 `google-apps-script.js` 示例。
+- exact 外部依赖可用时只调用其官方 API/扩展点，不调用第一方重复实现。
+- 依赖缺失、版本不兼容或构建/签名/许可证/平台/安全条件不成立时，产生明确、可诊断失败并停止该能力。
+- 失败路径不会切换到 legacy、另一 provider/backend、adapter/shim、cache、mock、简化实现或不完整路径。
+- 测试 double 只存在于测试 target，不进入 production selection 或 runtime fallback。
+- Review 检查新增 wrapper/adapter/facade 是否仅为官方 API 必需的最薄接线；发现核心能力复制、第二实现或静默降级即判定失败。
 
-## 依赖安装方式
+最近自查日期：2026-06-25
 
-当前未发现 `package.json`、锁文件或依赖安装命令。浏览器运行时依赖已 vendored 到 `vendor/`：
+## 环境
 
-- PDF.js
-- markdown-it
-- DOMPurify
-- Viewer.js
+- 现代浏览器（支持动态 `import()`/`fetch()`/Canvas/DOM API）。
+- 本地静态服务器必需（`file://` 破坏 fetch）。
+- 可选 Python 3（静态服务器）；可选 Node.js（`node --check`）。
+- GitHub Actions env（工作流）；Apps Script env（示例）。
 
-因此本仓库本地预览通常不需要安装前端依赖。
+## 依赖安装
 
-## 构建命令
+无需安装——运行时库（PDF.js/markdown-it/DOMPurify/Viewer.js）全 vendored。无 `package.json`/lockfile。
 
-未确认存在构建命令。当前项目是纯静态文件结构，没有发现 `npm run build`、Makefile、Vite、Webpack、Rollup 或其他构建配置。
+## 构建
 
-推荐本地预览命令：
+无构建。预览：`python3 -m http.server 8000` → `http://localhost:8000/`。
 
-```bash
-python3 -m http.server 8000
-```
+## 测试
 
-然后打开：
+- 单元测试：无。
+- 集成测试：无。索引同步在 GitHub Actions 手动验证（Actions → `Update Drive Index` → 确认下载/格式/commit-on-diff）。不得在本地模拟写 `data/drive-index.json`（除非知真实 secret/URL）。
+- UI 测试：无自动化。9 步手动 UI 矩阵（见下）。
 
-```text
-http://localhost:8000/
-```
+## Lint / Format
 
-## 单元测试命令
+无配置 lint/format。可用：
+- `git diff --check`
+- `python3 -m json.tool data/{site-config,subject-config,drive-index}.json`（仅语法，无 schema）
+- `node --check script.js`（仅语法）
 
-未确认。当前未发现单元测试文件或测试运行器配置。
+> 这些非官方测试脚本；若新增真实配置须更新本文档。
 
-## 集成测试命令
+## 手动验证矩阵
 
-未确认。当前未发现集成测试脚本。
+| 场景 | 步骤 | 预期 | 状态 |
+|---|---|---|---|
+| 启动 | `python3 -m http.server 8000` → 打开 | 页面加载 | UNKNOWN |
+| 标题/品牌/学科/avatar/副标题 | 检查页头 | 来自 site/subject-config | UNKNOWN |
+| drive-source 按钮 | `driveFolderUrl` 空时 | 不可用状态 | UNKNOWN |
+| 分类 pills | 检查 | 来自 subject-config categories | UNKNOWN |
+| 树/面包屑/返回 | 导航 | 同步 | UNKNOWN |
+| 搜索 | 按 title/category/updatedAt | 结果正确 | UNKNOWN |
+| PDF 预览 | 预览 PDF | PDF.js 渲染 + fallback 文案 | UNKNOWN |
+| Markdown 预览 | 预览 Markdown | 净化渲染 | UNKNOWN |
+| 图片预览 | 预览图片 | Viewer.js 打开 | UNKNOWN |
+| URL `#`/不可 fetch | 预览 | fallback 文案 + "打开原始" | UNKNOWN |
+| 移动端宽度 | 缩窄窗口 | 无重叠 | UNKNOWN |
 
-与外部索引同步相关的手动集成验证在 GitHub Actions 中完成：
+## 验证边界声明
 
-- 进入 Actions。
-- 运行 `Update Drive Index` workflow。
-- 确认 `data/drive-index.json` 被下载、格式化，并且仅在有差异时提交。
-
-本地不要在不了解真实 secret 和外部 URL 的情况下模拟写入 `data/drive-index.json`。
-
-## UI 测试命令
-
-未确认存在自动化 UI 测试。
-
-手动 UI 验证建议：
-
-1. 启动 `python3 -m http.server 8000`。
-2. 打开 `http://localhost:8000/`。
-3. 确认页面标题、品牌名、学科名、头像和副标题正确。
-4. 确认资料源按钮在 `driveFolderUrl` 为空时显示不可用状态。
-5. 确认分类 pills 根据 `data/subject-config.json` 渲染。
-6. 确认目录树、面包屑、返回按钮和当前文件夹内容能同步切换。
-7. 搜索示例资料标题、分类或更新时间，确认结果数量和卡片列表正确。
-8. 对 PDF、Markdown、图片样例分别验证预览入口；如果样例 URL 是 `#` 或不可 fetch，应确认 fallback 文案和“打开原文件”入口合理。
-9. 在移动宽度下确认侧栏、主内容、卡片和预览弹窗不重叠。
-
-## 静态检查 / lint / format 命令
-
-当前没有配置化 lint 或 format 命令。
-
-可执行的低成本检查：
-
-```bash
-git diff --check
-```
-
-```bash
-python3 -m json.tool data/site-config.json
-python3 -m json.tool data/subject-config.json
-python3 -m json.tool data/drive-index.json
-```
-
-```bash
-node --check script.js
-```
-
-说明：
-
-- `git diff --check` 可检查尾随空白和补丁格式问题。
-- `python3 -m json.tool` 只验证 JSON 语法，不验证业务 schema。
-- `node --check script.js` 只验证 JavaScript 语法，不验证浏览器运行时行为。
-- 这些命令不是仓库内正式测试脚本；若未来加入正式配置，应以配置文件为准更新本文档。
+- 文档任务：至少 `git diff --check` + `git status --short`；**未运行构建/测试**（无测试存在），须声明。
+- 代码任务：因无测试，必须手动跑上表相关场景。
 
 ## 常见失败原因
 
-- 直接用 `file://` 打开页面，导致 `fetch("data/*.json")` 失败。
-- `data/*.json` 语法错误或字段类型不符合 `script.js` 预期。
-- `vendor/` 文件缺失或路径改变，导致 PDF.js、markdown-it、DOMPurify、Viewer.js 未加载。
-- `vendor/pdfjs/pdf.worker.mjs` 路径改变，导致 PDF 渲染失败。
-- Google Drive 文件权限或跨域限制导致 PDF/Markdown/图片无法 fetch。
-- `DRIVE_INDEX_SOURCE_URL` secret 未配置或外部索引 URL 返回非 JSON。
-- Actions 运行分支没有写权限，导致同步后无法 commit/push。
-- 图片或 Markdown 使用了不被 `sanitizeResourceUrl()` 接受的协议。
-
-## 本轮是否实际运行了命令
-
-本轮实际运行了项目自查和文档验证命令，包括：
-
-- `pwd`
-- `git rev-parse --show-toplevel`
-- `git status --short`
-- 目录、文件、源码和文档只读扫描命令
-- 文档写入后的 `git diff --check`
-- 文档写入后的 `git status --short`
-- 文档写入后的 `find docs -maxdepth 1 -type f | sort`
-- 文档写入后的 `sed -n '1,220p' AGENTS.md`
-
-本轮未运行完整构建或测试。
+- `file://` 破坏 fetch。
+- JSON 糟糕/类型不符 `script.js` 预期。
+- `vendor/` 文件缺失/移动。
+- `pdf.worker.mjs` 移动。
+- Drive 权限/CORS。
+- 缺/无效 `DRIVE_INDEX_SOURCE_URL`。
+- Actions 分支无写权限。
+- 图片/Markdown URL 用了 `sanitizeResourceUrl` 拒绝的协议。
